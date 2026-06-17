@@ -1,4 +1,4 @@
-import type { OpencodeFlowConfig, WorkflowStepConfig } from "./config.js"
+import type { WorkflowStepConfig } from "./config.js"
 import { buildStepPrompt, type PreviousStepOutput } from "./prompt.js"
 
 /**
@@ -46,6 +46,8 @@ export interface WorkflowStepRunnerInput {
   prompt: string
   /** Outputs from earlier steps, in execution order. */
   previousOutputs: readonly PreviousStepOutput[]
+  /** Arguments passed to the workflow by the caller. */
+  args: Record<string, unknown>
 }
 
 /**
@@ -177,11 +179,13 @@ export function createOpencodeStepRunner(
  */
 export interface ExecuteWorkflowInput {
   /** Loaded and validated workflow configuration. */
-  config: OpencodeFlowConfig
+  config: { workflows: Record<string, { steps: WorkflowStepConfig[] }> }
   /** Name of the workflow to run. */
   workflowName: string
   /** Runner that executes a single step and returns its output. */
   runner: WorkflowStepRunner
+  /** Optional structured arguments forwarded into every step prompt. */
+  args?: Record<string, unknown> | undefined
 }
 
 /** Output produced by one executed workflow step. */
@@ -236,7 +240,7 @@ export class WorkflowExecutionError extends Error {
 export async function executeWorkflow(
   input: ExecuteWorkflowInput
 ): Promise<WorkflowExecutionResult> {
-  const { config, workflowName, runner } = input
+  const { config, workflowName, runner, args = {} } = input
   const workflow = config.workflows[workflowName]
 
   if (!workflow) {
@@ -257,6 +261,7 @@ export async function executeWorkflow(
       stepIndex,
       totalSteps,
       previousOutputs,
+      args,
     })
 
     try {
@@ -268,6 +273,7 @@ export async function executeWorkflow(
         totalSteps,
         prompt,
         previousOutputs: previousOutputs.slice(),
+        args,
       })
 
       previousOutputs.push({ stepIndex, prompt, output })

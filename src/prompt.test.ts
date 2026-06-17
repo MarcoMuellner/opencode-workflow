@@ -129,26 +129,58 @@ describe("buildStepPrompt", () => {
     expect(first).toBe(second)
   })
 
-  it("includes multiple previous outputs in execution order", () => {
+  it("includes workflow arguments when provided", () => {
     // Arrange
-    const step = makeStep("Suggest fixes.", "anthropic/claude-sonnet-4")
-    const previousOutputs = [
-      { stepIndex: 0, prompt: "List files.", output: "File A" },
-      { stepIndex: 1, prompt: "Identify risks.", output: "Risk B" },
-    ]
+    const step = makeStep("Summarize.", "anthropic/claude-sonnet-4")
 
     // Act
     const result = buildStepPrompt({
-      workflowName: "review",
+      workflowName: "summarize",
       step,
-      stepIndex: 2,
-      totalSteps: 3,
-      previousOutputs,
+      stepIndex: 0,
+      totalSteps: 1,
+      args: { githubProjectNumber: 3, flag: true },
     })
 
     // Assert
-    const firstOutputIndex = result.indexOf("File A")
-    const secondOutputIndex = result.indexOf("Risk B")
-    expect(firstOutputIndex).toBeLessThan(secondOutputIndex)
+    expect(result).toContain("Workflow arguments:")
+    expect(result).toContain("githubProjectNumber: 3")
+    expect(result).toContain("flag: true")
+    expect(result.indexOf("Workflow arguments:")).toBeLessThan(
+      result.indexOf("User-authored step prompt:")
+    )
+  })
+
+  it("omits workflow arguments section when args is empty", () => {
+    // Arrange
+    const step = makeStep("Summarize.", "anthropic/claude-sonnet-4")
+
+    // Act
+    const result = buildStepPrompt({
+      workflowName: "summarize",
+      step,
+      stepIndex: 0,
+      totalSteps: 1,
+      args: {},
+    })
+
+    // Assert
+    expect(result).not.toContain("Workflow arguments:")
+  })
+
+  it("omits workflow arguments section when args is undefined", () => {
+    // Arrange
+    const step = makeStep("Summarize.", "anthropic/claude-sonnet-4")
+
+    // Act
+    const result = buildStepPrompt({
+      workflowName: "summarize",
+      step,
+      stepIndex: 0,
+      totalSteps: 1,
+    })
+
+    // Assert
+    expect(result).not.toContain("Workflow arguments:")
   })
 })

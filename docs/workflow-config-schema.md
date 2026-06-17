@@ -31,6 +31,32 @@ Run the opencode-workflow workflow named "$ARGUMENTS" using the `opencode_flow` 
 No workflow key is treated as a default. Calling the tool with an unknown name
 fails with the list of configured workflow names.
 
+### Tool arguments
+
+The `opencode_flow` tool accepts:
+
+- `workflowName` (string, required) — the workflow to run.
+- `args` (object, optional) — structured arguments forwarded into every step
+  prompt. Each top-level entry is rendered with its JSON value in the prompt.
+
+Example:
+
+```json
+{
+  "workflowName": "plan",
+  "args": {
+    "githubProjectNumber": 3
+  }
+}
+```
+
+Inside every step prompt this becomes:
+
+```text
+Workflow arguments:
+- githubProjectNumber: 3
+```
+
 ## Top-level key
 
 Workflow configuration lives under `opencodeFlow` in `opencode.json`.
@@ -99,6 +125,11 @@ Workflow configuration lives under `opencodeFlow` in `opencode.json`.
 - Must be non-empty after trimming whitespace.
 - The user-authored text is kept intact. The runtime will append the
   clarification instruction automatically in MVP.
+- If the value looks like a file path (no spaces, or ends in `.md`, `.txt`,
+  or `.prompt`), the runtime attempts to read it relative to the `.opencode/`
+  directory.
+- Prompt file paths must be relative to `.opencode/` and cannot use `..` or
+  absolute paths to escape it.
 
 #### `model`
 

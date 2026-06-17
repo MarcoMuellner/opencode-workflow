@@ -191,6 +191,7 @@ describe("createOpencodeStepRunner", () => {
       prompt:
         "Workflow: review\nStep: 1 of 1\n\nUser-authored step prompt:\nCheck this.",
       previousOutputs: [],
+      args: {},
     })
 
     // Assert
@@ -226,6 +227,7 @@ describe("createOpencodeStepRunner", () => {
       totalSteps: 1,
       prompt: "prompt",
       previousOutputs: [],
+      args: {},
     })
 
     // Assert
@@ -256,6 +258,7 @@ describe("createOpencodeStepRunner", () => {
       totalSteps: 1,
       prompt: "prompt",
       previousOutputs: [],
+      args: {},
     })
 
     // Assert
@@ -276,6 +279,7 @@ describe("createOpencodeStepRunner", () => {
         totalSteps: 1,
         prompt: "prompt",
         previousOutputs: [],
+        args: {},
       })
 
     // Assert
@@ -298,6 +302,7 @@ describe("createOpencodeStepRunner", () => {
         totalSteps: 1,
         prompt: "prompt",
         previousOutputs: [],
+        args: {},
       })
 
     // Assert
@@ -318,6 +323,7 @@ describe("createOpencodeStepRunner", () => {
         totalSteps: 1,
         prompt: "prompt",
         previousOutputs: [],
+        args: {},
       })
 
     // Assert

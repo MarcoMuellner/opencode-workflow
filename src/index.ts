@@ -1,7 +1,8 @@
+import path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import type { OpencodeFlowConfig } from "./config.js"
-import { loadWorkflowConfig } from "./config.js"
+import { loadWorkflowConfig, resolveWorkflowConfig } from "./config.js"
 import { createOpencodeStepRunner, executeWorkflow } from "./execution.js"
 import type {
   OpencodeStepRunnerClient,
@@ -68,6 +69,7 @@ export const OpencodeFlowPlugin: Plugin = async (ctx) => {
           "Run a named opencode-workflow workflow defined in the project configuration.",
         args: {
           workflowName: tool.schema.string().min(1),
+          args: tool.schema.object({}).optional(),
         },
         async execute(args, context) {
           if (!workflowConfig) {
@@ -76,6 +78,12 @@ export const OpencodeFlowPlugin: Plugin = async (ctx) => {
             )
           }
 
+          const opencodeDir = path.join(context.directory, ".opencode")
+          const resolvedConfig = resolveWorkflowConfig(
+            workflowConfig,
+            opencodeDir
+          )
+
           const runner = createOpencodeStepRunner(
             ctx.client as OpencodeStepRunnerClient,
             context.sessionID,
@@ -83,9 +91,10 @@ export const OpencodeFlowPlugin: Plugin = async (ctx) => {
           )
 
           const result = await executeWorkflow({
-            config: workflowConfig,
+            config: { workflows: resolvedConfig },
             workflowName: args.workflowName,
             runner,
+            args: args.args,
           })
 
           return formatWorkflowResult(args.workflowName, result)

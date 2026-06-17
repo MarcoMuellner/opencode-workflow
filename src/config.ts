@@ -1,9 +1,36 @@
 /** Configuration for a single workflow step. */
 export interface WorkflowStepConfig {
-  /** User-authored prompt text. Kept exactly as configured. */
+  /**
+   * User-authored prompt text.
+   *
+   * May be either inline text or a path relative to the `.opencode/` directory
+   * pointing to a file containing the prompt. The runtime resolves file paths
+   * and uses the file contents as the prompt.
+   */
   prompt: string
   /** Model identifier for this step. Free-form non-empty string in this MVP. */
   model: string
+}
+
+/**
+ * Fully resolved workflow step ready for execution.
+ *
+ * Prompts are always loaded inline; `promptFile` records the original file
+ * path when the step configured a `.opencode/` prompt file.
+ */
+export interface ResolvedWorkflowStepConfig {
+  /** Prompt text loaded from inline config or a `.opencode/` prompt file. */
+  prompt: string
+  /** Original prompt file path if the step resolved a `.opencode/` file. */
+  promptFile: string | undefined
+  /** Model identifier for this step. */
+  model: string
+}
+
+/** Configuration for one named workflow after prompt files are resolved. */
+export interface ResolvedWorkflowConfig {
+  /** Ordered steps to execute, with inline or file-loaded prompts. */
+  steps: ResolvedWorkflowStepConfig[]
 }
 
 /** Configuration for one named workflow. */
@@ -16,6 +43,100 @@ export interface WorkflowConfig {
 export interface OpencodeFlowConfig {
   /** Named workflows keyed by workflow name. */
   workflows: Record<string, WorkflowConfig>
+}
+
+/**
+ * Resolve a single prompt value.
+ *
+ * If `prompt` looks like a `.opencode/` file path (ends with a common prompt
+ * extension or references an existing file relative to `.opencode/`), read that
+ * file and return its contents. Otherwise return the inline prompt text.
+ *
+ * @param opencodeDir - Absolute path to the `.opencode/` directory.
+ * @param prompt - Prompt value from the workflow step.
+ * @returns The inline prompt or file-loaded prompt, plus the source path.
+ * @throws {Error} When the prompt appears to be a file path but is invalid or unreadable.
+ */
+export function resolvePrompt(
+  opencodeDir: string,
+  prompt: string
+): { prompt: string; promptFile?: string } {
+  const trimmed = prompt.trim()
+  const lower = trimmed.toLowerCase()
+  const knownExtensions = [".md", ".txt", ".prompt"]
+  const looksLikeFile =
+    knownExtensions.some((ext) => lower.endsWith(ext)) || !trimmed.includes(" ")
+
+  if (!looksLikeFile) {
+    return { prompt: trimmed }
+  }
+
+  const candidate = path.resolve(opencodeDir, trimmed)
+  const relativeToOpencode = path.relative(opencodeDir, candidate)
+
+  if (
+    relativeToOpencode.startsWith("..") ||
+    path.isAbsolute(trimmed) ||
+    trimmed.startsWith("/")
+  ) {
+    throw new Error(
+      `Prompt file path "${trimmed}" must be relative to the .opencode directory and cannot escape it.`
+    )
+  }
+
+  if (!existsSync(candidate)) {
+    return { prompt: trimmed }
+  }
+
+  const stats = statSync(candidate)
+
+  if (!stats.isFile()) {
+    throw new Error(
+      `Prompt file path "${trimmed}" must point to a file, not a directory.`
+    )
+  }
+
+  return { prompt: readFileSync(candidate, "utf-8"), promptFile: trimmed }
+}
+
+import { existsSync, readFileSync, statSync } from "node:fs"
+import path from "node:path"
+
+/**
+ * Resolve every workflow in the loaded config to inline prompts.
+ *
+ * The source config keeps `prompt` as the raw user value. This function reads
+ * `.opencode/` prompt files, rejects unsafe paths, and returns a structure that
+ * execution can use directly.
+ *
+ * @param config - Validated config from {@link loadWorkflowConfig}.
+ * @param opencodeDir - Absolute path to the `.opencode/` directory.
+ * @returns A resolved copy of the config with prompt files loaded inline.
+ * @throws {Error} When a prompt file path escapes `.opencode` or cannot be read.
+ */
+export function resolveWorkflowConfig(
+  config: OpencodeFlowConfig,
+  opencodeDir: string
+): Record<string, ResolvedWorkflowConfig> {
+  const resolved: Record<string, ResolvedWorkflowConfig> = {}
+
+  for (const [name, workflow] of Object.entries(config.workflows)) {
+    const resolvedSteps: ResolvedWorkflowStepConfig[] = []
+
+    for (const step of workflow.steps) {
+      const resolvedPrompt = resolvePrompt(opencodeDir, step.prompt)
+
+      resolvedSteps.push({
+        prompt: resolvedPrompt.prompt,
+        promptFile: resolvedPrompt.promptFile,
+        model: step.model,
+      })
+    }
+
+    resolved[name] = { steps: resolvedSteps }
+  }
+
+  return resolved
 }
 
 /**

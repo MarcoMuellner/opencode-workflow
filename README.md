@@ -21,6 +21,11 @@ opencode installs npm plugins automatically at startup. Restart opencode after a
 
 Define named workflows under the `opencodeFlow` key in `opencode.json`. Each workflow must contain at least one step, and each step must have a `prompt` and a `model`.
 
+A step `prompt` may be either:
+
+- **Inline text** — the prompt is sent exactly as written.
+- **A `.opencode/` file path** — the runtime reads the file and uses its contents as the prompt. Paths are relative to `.opencode/`; they must not escape that directory with `..` or absolute paths.
+
 ### Minimal single-step workflow
 
 ```json
@@ -40,6 +45,35 @@ Define named workflows under the `opencodeFlow` key in `opencode.json`. Each wor
     }
   }
 }
+```
+
+### Prompt file workflow
+
+Store long prompts under `.opencode/` and reference them by relative path.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-workflow"],
+  "opencodeFlow": {
+    "workflows": {
+      "review": {
+        "steps": [
+          {
+            "prompt": "prompts/review.md",
+            "model": "anthropic/claude-sonnet-4"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+With `.opencode/prompts/review.md`:
+
+```md
+Review the current branch changes for correctness, risks, and missing tests.
 ```
 
 ### Complete multi-step workflow example
@@ -75,13 +109,15 @@ The following `pir-piv` workflow is an example only. It demonstrates how to chai
 
 This workflow is not built in; it is included here as a starting point. You can copy, rename, and modify it.
 
-## Trigger a workflow from a custom command
+### Passing structured arguments
 
-Create an opencode custom command that passes the workflow name to the `opencode_flow` tool. For example, `.opencode/commands/flow.md`:
+Use the optional `args` object on the `opencode_flow` tool to forward values such as a GitHub project number into every step prompt.
+
+Example custom command `.opencode/commands/flow.md`:
 
 ```md
 ---
-description: Run a named opencode-workflow workflow
+description: Run a named opencode-workflow workflow with arguments
 agent: build
 ---
 
@@ -92,16 +128,17 @@ If "$ARGUMENTS" is empty, ask the user which configured workflow to run. Do not 
 Use the `opencode_flow` tool with:
 
 - workflowName: "$ARGUMENTS"
+- args: { "githubProjectNumber": 3 }
 ```
 
-Usage in the TUI:
+The `args` object appears in every step prompt as:
 
 ```text
-/flow summarize
-/flow pir-piv
+Workflow arguments:
+- githubProjectNumber: 3
 ```
 
-`$ARGUMENTS` becomes the `workflowName` argument to the plugin tool, so any configured workflow can be triggered by name.
+This makes values like project numbers, flags, or identifiers available to every step without hard-coding them in the prompt text.
 
 ## How it works
 

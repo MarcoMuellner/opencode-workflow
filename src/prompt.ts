@@ -1,6 +1,15 @@
 import type { WorkflowStepConfig } from "./config.js"
 
 /**
+ * Workflow arguments provided to the runtime and forwarded into every step.
+ *
+ * Simple JSON-compatible values are supported. Complex nested structures are
+ * passed through verbatim, but the prompt renderer always prints the top-level
+ * entries using JSON.stringify.
+ */
+export type WorkflowArgs = Record<string, unknown>
+
+/**
  * Mandatory clarification instruction injected into every workflow step prompt.
  *
  * Tells the agent to use opencode's question tool when anything is unclear
@@ -31,6 +40,28 @@ export interface BuildStepPromptInput {
   totalSteps: number
   /** Outputs from earlier steps, in execution order. */
   previousOutputs?: readonly PreviousStepOutput[]
+  /** Arguments provided to the workflow by the caller. */
+  args?: WorkflowArgs
+}
+
+/**
+ * Format workflow arguments for inclusion in a step prompt.
+ *
+ * @param args - Workflow arguments from the caller.
+ * @returns A deterministic string representation, or undefined when empty.
+ */
+function formatArgs(args: WorkflowArgs | undefined): string | undefined {
+  if (args === undefined || Object.keys(args).length === 0) {
+    return undefined
+  }
+
+  const lines: string[] = ["Workflow arguments:"]
+
+  for (const [key, value] of Object.entries(args)) {
+    lines.push(`- ${key}: ${JSON.stringify(value)}`)
+  }
+
+  return lines.join("\n")
 }
 
 /**
@@ -44,7 +75,8 @@ export interface BuildStepPromptInput {
  * @returns The assembled prompt string.
  */
 export function buildStepPrompt(input: BuildStepPromptInput): string {
-  const { workflowName, step, stepIndex, totalSteps, previousOutputs } = input
+  const { workflowName, step, stepIndex, totalSteps, previousOutputs, args } =
+    input
   const stepNumber = stepIndex + 1
 
   const parts: string[] = []
@@ -62,6 +94,12 @@ export function buildStepPrompt(input: BuildStepPromptInput): string {
       parts.push(`\nStep ${previousStepNumber} output:\n${entry.output}`)
     }
 
+    parts.push("")
+  }
+
+  const argsText = formatArgs(args)
+  if (argsText !== undefined) {
+    parts.push(argsText)
     parts.push("")
   }
 
