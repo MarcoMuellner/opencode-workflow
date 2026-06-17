@@ -1,6 +1,6 @@
 import type { Config } from "@opencode-ai/plugin"
 import { describe, expect, it } from "vitest"
-import { OpencodeFlowPlugin } from "./index.js"
+import { OpencodeFlowPlugin, executeWorkflow } from "./index.js"
 
 function asConfig(value: Record<string, unknown>): Config {
   return value as Config
@@ -10,6 +10,11 @@ describe("OpencodeFlowPlugin", () => {
   it("is exported as a named plugin function", () => {
     // Assert
     expect(OpencodeFlowPlugin).toBeTypeOf("function")
+  })
+
+  it("exports the workflow execution API", () => {
+    // Assert
+    expect(executeWorkflow).toBeTypeOf("function")
   })
 
   it("returns a config hook", async () => {

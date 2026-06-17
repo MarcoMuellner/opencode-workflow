@@ -1,6 +1,20 @@
 import type { Plugin } from "@opencode-ai/plugin"
 import { loadWorkflowConfig } from "./config.js"
 
+export {
+  createOpencodeStepRunner,
+  executeWorkflow,
+  WorkflowExecutionError,
+} from "./execution.js"
+export type {
+  ExecuteWorkflowInput,
+  OpencodeStepRunnerClient,
+  WorkflowExecutionResult,
+  WorkflowStepExecutionOutput,
+  WorkflowStepRunner,
+  WorkflowStepRunnerInput,
+} from "./execution.js"
+
 /**
  * opencode-flow plugin entrypoint.
  *
