@@ -29,7 +29,7 @@ function makeValidOptions(): PluginOptions {
   }
 }
 
-function makeFakePluginInput(responses: string[]): PluginInput & {
+function makeFakePluginInput(responses: (string | Error)[]): PluginInput & {
   capturedPrompts: unknown[]
   createdSessions: {
     parentID?: string | undefined
@@ -59,16 +59,20 @@ function makeFakePluginInput(responses: string[]): PluginInput & {
       },
       prompt: async (options: unknown) => {
         capturedPrompts.push(options)
-        const text = responses[callIndex++]
+        const response = responses[callIndex++]
 
-        if (text === undefined) {
+        if (response === undefined) {
           throw new Error(`No configured response for call ${callIndex}`)
+        }
+
+        if (response instanceof Error) {
+          throw response
         }
 
         return {
           data: {
             info: {},
-            parts: [{ type: "text", text }],
+            parts: [{ type: "text", text: response }],
           },
         }
       },
@@ -100,6 +104,30 @@ function makeToolContext() {
     abort: new AbortController().signal,
     metadata: () => {},
     ask: async () => {},
+  }
+}
+
+function makeCapturingToolContext() {
+  const captured: {
+    title?: string | undefined
+    metadata?: Record<string, unknown> | undefined
+  }[] = []
+
+  return {
+    context: {
+      sessionID: "session-1",
+      messageID: "message-1",
+      agent: "build",
+      directory: "/project",
+      worktree: "/project",
+      abort: new AbortController().signal,
+      metadata: (input: {
+        title?: string | undefined
+        metadata?: Record<string, unknown> | undefined
+      }) => captured.push({ title: input.title, metadata: input.metadata }),
+      ask: async () => {},
+    },
+    captured,
   }
 }
 
@@ -148,13 +176,13 @@ describe("OpencodeFlowPlugin", () => {
     const plugin = await OpencodeFlowPlugin(input, makeValidOptions())
 
     const toolContext = makeToolContext()
-    const result = await getTool(plugin).execute(
+    const result = (await getTool(plugin).execute(
       { workflowName: "summarize" },
       toolContext
-    )
+    )) as { output: string }
 
-    expect(result).toContain('Completed workflow "summarize"')
-    expect(result).toContain("Summary output.")
+    expect(result.output).toContain('Completed workflow "summarize"')
+    expect(result.output).toContain("Summary output.")
     expect(input.createdSessions).toHaveLength(1)
     expect(input.createdSessions[0]?.parentID).toBe(toolContext.sessionID)
     expect(input.createdSessions[0]?.title).toBe("workflow: summarize")
@@ -237,12 +265,12 @@ describe("OpencodeFlowPlugin", () => {
     toolContext.directory = tempDir
     toolContext.worktree = tempDir
 
-    const result = await getTool(plugin).execute(
+    const result = (await getTool(plugin).execute(
       { workflowName: "review" },
       toolContext
-    )
+    )) as { output: string }
 
-    expect(result).toContain('Completed workflow "review"')
+    expect(result.output).toContain('Completed workflow "review"')
     expect(input.capturedPrompts).toHaveLength(1)
     const promptText = (
       input.capturedPrompts[0] as { body: { parts: { text: string }[] } }
@@ -295,5 +323,134 @@ describe("OpencodeFlowPlugin", () => {
     )
 
     rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it("calls context.metadata while steps run and at completion", async () => {
+    // Arrange
+    const input = makeFakePluginInput(["First output.", "Second output."])
+    const plugin = await OpencodeFlowPlugin(input, {
+      workflows: {
+        two: {
+          steps: [
+            { prompt: "First.", model: "a", agent: "plan" },
+            { prompt: "Second.", model: "b" },
+          ],
+        },
+      },
+    })
+    const { context, captured } = makeCapturingToolContext()
+
+    // Act
+    await getTool(plugin).execute({ workflowName: "two" }, context)
+
+    // Assert
+    expect(captured.length).toBeGreaterThan(2)
+    const last = captured[captured.length - 1]
+    expect(last?.metadata).toMatchObject({
+      workflowName: "two",
+      status: "completed",
+      currentStep: 2,
+      totalSteps: 2,
+      currentModel: "b",
+      currentAgent: "default",
+    })
+    expect(last?.title).toMatch(/two/)
+    expect(last?.title).toMatch(/2\/2/)
+  })
+
+  it("returns a structured tool result with title, output, and metadata", async () => {
+    // Arrange
+    const input = makeFakePluginInput(["Step result."])
+    const plugin = await OpencodeFlowPlugin(input, {
+      workflows: {
+        summarize: {
+          steps: [
+            {
+              prompt: "Summarize the recent changes.",
+              model: "anthropic/claude-sonnet-4",
+            },
+          ],
+        },
+      },
+    })
+
+    // Act
+    const result = await getTool(plugin).execute(
+      { workflowName: "summarize" },
+      makeToolContext()
+    )
+
+    // Assert
+    expect(result).toEqual(
+      expect.objectContaining({
+        title: expect.stringContaining("summarize"),
+        output: expect.stringContaining("Step result."),
+        metadata: expect.objectContaining({
+          workflowName: "summarize",
+          status: "completed",
+          totalSteps: 1,
+        }),
+      })
+    )
+  })
+
+  it("preserves the existing final text in the structured result output", async () => {
+    // Arrange
+    const input = makeFakePluginInput(["Output one.", "Output two."])
+    const plugin = await OpencodeFlowPlugin(input, {
+      workflows: {
+        review: {
+          steps: [
+            { prompt: "First.", model: "a" },
+            { prompt: "Second.", model: "b" },
+          ],
+        },
+      },
+    })
+
+    // Act
+    const result = (await getTool(plugin).execute(
+      { workflowName: "review" },
+      makeToolContext()
+    )) as { output: string }
+
+    // Assert
+    expect(result.output).toContain('Completed workflow "review"')
+    expect(result.output).toContain("Output one.")
+    expect(result.output).toContain("Output two.")
+  })
+
+  it("updates metadata with failed status before rejecting on step failure", async () => {
+    // Arrange
+    const input = makeFakePluginInput(["ok", new Error("boom")])
+    const plugin = await OpencodeFlowPlugin(input, {
+      workflows: {
+        review: {
+          steps: [
+            { prompt: "First.", model: "a" },
+            { prompt: "Second.", model: "b" },
+          ],
+        },
+      },
+    })
+    const { context, captured } = makeCapturingToolContext()
+
+    // Act
+    const act = async () =>
+      getTool(plugin).execute({ workflowName: "review" }, context)
+
+    // Assert
+    await expect(act()).rejects.toThrow()
+    const failedEntry = captured.find(
+      (entry) => entry.metadata?.status === "failed"
+    )
+    expect(failedEntry).toBeDefined()
+    expect(failedEntry?.metadata).toMatchObject({
+      workflowName: "review",
+      status: "failed",
+      currentStep: 2,
+      totalSteps: 2,
+      currentModel: "b",
+    })
   })
 })

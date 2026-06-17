@@ -11,6 +11,7 @@ import {
 import type {
   OpencodeStepRunnerClient,
   WorkflowExecutionResult,
+  WorkflowProgressSnapshot,
 } from "./execution.js"
 
 export {
@@ -22,7 +23,12 @@ export type {
   ExecuteWorkflowInput,
   OpencodeStepRunnerClient,
   WorkflowExecutionResult,
+  WorkflowProgressCallback,
+  WorkflowProgressSnapshot,
+  WorkflowProgressStatus,
   WorkflowStepExecutionOutput,
+  WorkflowStepProgress,
+  WorkflowStepProgressStatus,
   WorkflowStepRunner,
   WorkflowStepRunnerInput,
 } from "./execution.js"
@@ -51,6 +57,53 @@ function formatWorkflowResult(
   }
 
   return lines.join("\n").trimEnd()
+}
+
+/** Format a progress snapshot into a concise tool card title. */
+function formatWorkflowProgressTitle(
+  snapshot: WorkflowProgressSnapshot
+): string {
+  const completed = snapshot.steps.filter(
+    (step) => step.status === "completed"
+  ).length
+  const currentStepNumber = snapshot.currentStepIndex + 1
+
+  if (snapshot.status === "completed") {
+    return `${snapshot.workflowName} · ${completed}/${snapshot.totalSteps} completed`
+  }
+
+  if (snapshot.status === "failed") {
+    return `${snapshot.workflowName} · failed at step ${currentStepNumber}/${snapshot.totalSteps}`
+  }
+
+  const stepLabel =
+    snapshot.currentStepIndex < 0
+      ? `starting`
+      : `step ${currentStepNumber}/${snapshot.totalSteps}`
+
+  return `${snapshot.workflowName} · ${stepLabel} running`
+}
+
+/** Build metadata for a progress snapshot suitable for context.metadata(). */
+function formatWorkflowProgressMetadata(
+  snapshot: WorkflowProgressSnapshot
+): Record<string, unknown> {
+  const currentStep = snapshot.steps[snapshot.currentStepIndex]
+
+  return {
+    workflowName: snapshot.workflowName,
+    status: snapshot.status,
+    currentStep: snapshot.currentStepIndex + 1,
+    totalSteps: snapshot.totalSteps,
+    currentModel: currentStep?.model,
+    currentAgent: currentStep?.agent ?? "default",
+    steps: snapshot.steps.map((step) => ({
+      number: step.stepIndex + 1,
+      status: step.status,
+      model: step.model,
+      agent: step.agent ?? "default",
+    })),
+  }
 }
 
 /**
@@ -116,14 +169,41 @@ export const OpencodeFlowPlugin: Plugin = async (ctx, options) => {
             context.directory
           )
 
+          let lastSnapshot: WorkflowProgressSnapshot | undefined
+
           const result = await executeWorkflow({
             config: { workflows: resolvedConfig },
             workflowName: args.workflowName,
             runner,
             args: args.args,
+            onProgress: (snapshot) => {
+              lastSnapshot = snapshot
+              context.metadata({
+                title: formatWorkflowProgressTitle(snapshot),
+                metadata: formatWorkflowProgressMetadata(snapshot),
+              })
+            },
           })
 
-          return formatWorkflowResult(args.workflowName, result)
+          const output = formatWorkflowResult(args.workflowName, result)
+          const finalSnapshot: WorkflowProgressSnapshot = lastSnapshot ?? {
+            workflowName: args.workflowName,
+            status: "completed",
+            currentStepIndex: result.outputs.length - 1,
+            totalSteps: result.outputs.length,
+            steps: result.outputs.map((stepOutput) => ({
+              stepIndex: stepOutput.stepIndex,
+              model: "",
+              agent: undefined,
+              status: "completed" as const,
+            })),
+          }
+
+          return {
+            title: formatWorkflowProgressTitle(finalSnapshot),
+            output,
+            metadata: formatWorkflowProgressMetadata(finalSnapshot),
+          }
         },
       }),
     },

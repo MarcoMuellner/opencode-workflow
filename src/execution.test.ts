@@ -170,6 +170,90 @@ describe("executeWorkflow", () => {
     // Assert
     await expect(act()).rejects.toThrow(/step 2 of 3/i)
   })
+
+  it("emits progress snapshots in order for a successful workflow", async () => {
+    // Arrange
+    const config = makeWorkflowConfig([
+      { prompt: "First.", model: "a" },
+      { prompt: "Second.", model: "b" },
+    ])
+    const runner = makeInMemoryRunner(["out-0", "out-1"])
+    const snapshots: import("./execution.js").WorkflowProgressSnapshot[] = []
+
+    // Act
+    await executeWorkflow({
+      config,
+      workflowName: "review",
+      runner,
+      onProgress: (snapshot) => snapshots.push(snapshot),
+    })
+
+    // Assert
+    expect(snapshots).toHaveLength(6)
+    expect(snapshots[0]?.status).toBe("running")
+    expect(snapshots[0]?.currentStepIndex).toBe(-1)
+    expect(snapshots[1]?.steps[0]?.status).toBe("running")
+    expect(snapshots[2]?.steps[0]?.status).toBe("completed")
+    expect(snapshots[3]?.steps[1]?.status).toBe("running")
+    expect(snapshots[4]?.steps[1]?.status).toBe("completed")
+    expect(snapshots[5]?.status).toBe("completed")
+  })
+
+  it("includes step model and agent in progress snapshots", async () => {
+    // Arrange
+    const config = makeWorkflowConfig([
+      { prompt: "Plan.", model: "provider-a/model-a", agent: "plan" },
+      { prompt: "Build.", model: "provider-b/model-b", agent: "build" },
+    ])
+    const runner = makeInMemoryRunner(["out-0", "out-1"])
+    const snapshots: import("./execution.js").WorkflowProgressSnapshot[] = []
+
+    // Act
+    await executeWorkflow({
+      config,
+      workflowName: "review",
+      runner,
+      onProgress: (snapshot) => snapshots.push(snapshot),
+    })
+
+    // Assert
+    const lastSnapshot = snapshots[snapshots.length - 1]
+    expect(lastSnapshot?.steps[0]?.model).toBe("provider-a/model-a")
+    expect(lastSnapshot?.steps[0]?.agent).toBe("plan")
+    expect(lastSnapshot?.steps[1]?.model).toBe("provider-b/model-b")
+    expect(lastSnapshot?.steps[1]?.agent).toBe("build")
+  })
+
+  it("emits failed progress snapshot before throwing on step failure", async () => {
+    // Arrange
+    const config = makeWorkflowConfig([
+      { prompt: "First.", model: "a" },
+      { prompt: "Second.", model: "b" },
+    ])
+    const runner = async (input: WorkflowStepRunnerInput) => {
+      if (input.stepIndex === 1) {
+        throw new Error("Step failed")
+      }
+      return "out-0"
+    }
+    const snapshots: import("./execution.js").WorkflowProgressSnapshot[] = []
+
+    // Act
+    const act = async () =>
+      executeWorkflow({
+        config,
+        workflowName: "review",
+        runner,
+        onProgress: (snapshot) => snapshots.push(snapshot),
+      })
+
+    // Assert
+    await expect(act()).rejects.toThrow(/step 2 of 2/i)
+    const lastSnapshot = snapshots[snapshots.length - 1]
+    expect(lastSnapshot?.status).toBe("failed")
+    expect(lastSnapshot?.steps[1]?.status).toBe("failed")
+    expect(lastSnapshot?.steps[0]?.status).toBe("completed")
+  })
 })
 
 describe("createOpencodeStepRunner", () => {

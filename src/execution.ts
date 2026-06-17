@@ -188,6 +188,50 @@ export function createOpencodeStepRunner(
   }
 }
 
+/** Status of an individual workflow step during execution. */
+export type WorkflowStepProgressStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+
+/** Overall status of a workflow execution. */
+export type WorkflowProgressStatus = "running" | "completed" | "failed"
+
+/** Progress information for one step while a workflow executes. */
+export interface WorkflowStepProgress {
+  /** Zero-based index of this step within its workflow. */
+  stepIndex: number
+  /** Model identifier for this step. */
+  model: string
+  /** Optional opencode agent assigned to this step. */
+  agent?: string | undefined
+  /** Current execution status of this step. */
+  status: WorkflowStepProgressStatus
+}
+
+/** Snapshot of workflow progress passed to progress callbacks. */
+export interface WorkflowProgressSnapshot {
+  /** Name of the workflow being executed. */
+  workflowName: string
+  /** Overall workflow execution status. */
+  status: WorkflowProgressStatus
+  /** Zero-based index of the current step; -1 when no step has started yet. */
+  currentStepIndex: number
+  /** Total number of steps in the workflow. */
+  totalSteps: number
+  /** Progress for every step, in execution order. */
+  steps: WorkflowStepProgress[]
+}
+
+/**
+ * Callback invoked by {@link executeWorkflow} as workflow steps start, complete,
+ * or fail. The callback receives a complete snapshot of the workflow progress.
+ */
+export type WorkflowProgressCallback = (
+  snapshot: WorkflowProgressSnapshot
+) => void
+
 /**
  * Input for {@link executeWorkflow}.
  */
@@ -200,6 +244,8 @@ export interface ExecuteWorkflowInput {
   runner: WorkflowStepRunner
   /** Optional structured arguments forwarded into every step prompt. */
   args?: Record<string, unknown> | undefined
+  /** Optional callback invoked as each workflow step starts and completes. */
+  onProgress?: WorkflowProgressCallback | undefined
 }
 
 /** Output produced by one executed workflow step. */
@@ -251,10 +297,36 @@ export class WorkflowExecutionError extends Error {
  * @returns The outputs produced by each executed step.
  * @throws {WorkflowExecutionError} When the workflow is unknown or a step fails.
  */
+function createPendingProgress(
+  steps: readonly WorkflowStepConfig[]
+): WorkflowStepProgress[] {
+  return steps.map((step, stepIndex) => ({
+    stepIndex,
+    model: step.model,
+    agent: step.agent,
+    status: "pending",
+  }))
+}
+
+function makeProgressSnapshot(
+  workflowName: string,
+  status: WorkflowProgressStatus,
+  currentStepIndex: number,
+  steps: WorkflowStepProgress[]
+): WorkflowProgressSnapshot {
+  return {
+    workflowName,
+    status,
+    currentStepIndex,
+    totalSteps: steps.length,
+    steps: steps.map((step) => ({ ...step })),
+  }
+}
+
 export async function executeWorkflow(
   input: ExecuteWorkflowInput
 ): Promise<WorkflowExecutionResult> {
-  const { config, workflowName, runner, args = {} } = input
+  const { config, workflowName, runner, args = {}, onProgress } = input
   const workflow = config.workflows[workflowName]
 
   if (!workflow) {
@@ -266,9 +338,29 @@ export async function executeWorkflow(
 
   const totalSteps = workflow.steps.length
   const previousOutputs: WorkflowStepExecutionOutput[] = []
+  const stepsProgress = createPendingProgress(workflow.steps)
+
+  function emitProgress(
+    status: WorkflowProgressStatus,
+    currentStepIndex: number
+  ) {
+    onProgress?.(
+      makeProgressSnapshot(
+        workflowName,
+        status,
+        currentStepIndex,
+        stepsProgress
+      )
+    )
+  }
+
+  emitProgress("running", -1)
 
   for (let stepIndex = 0; stepIndex < totalSteps; stepIndex++) {
     const step = workflow.steps[stepIndex]!
+    stepsProgress[stepIndex]!.status = "running"
+    emitProgress("running", stepIndex)
+
     const prompt = buildStepPrompt({
       workflowName,
       step,
@@ -291,7 +383,12 @@ export async function executeWorkflow(
       })
 
       previousOutputs.push({ stepIndex, prompt, output })
+      stepsProgress[stepIndex]!.status = "completed"
+      emitProgress("running", stepIndex)
     } catch (error) {
+      stepsProgress[stepIndex]!.status = "failed"
+      emitProgress("failed", stepIndex)
+
       const stepNumber = stepIndex + 1
       const message =
         error instanceof Error
@@ -301,6 +398,8 @@ export async function executeWorkflow(
       throw new WorkflowExecutionError(message, workflowName, stepIndex)
     }
   }
+
+  emitProgress("completed", totalSteps - 1)
 
   return { outputs: previousOutputs }
 }
