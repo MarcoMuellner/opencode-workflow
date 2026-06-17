@@ -1,13 +1,49 @@
 {
   "name": "opencode-flow",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "version": "0.1.0",
+  "description": "An npm-distributed opencode plugin that runs named sequential workflows from opencode configuration.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "keywords": [],
-  "author": "",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "pnpm run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "workflow",
+    "agent"
+  ],
+  "author": "Marco Muellner",
   "license": "ISC",
-  "packageManager": "pnpm@10.33.2"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MarcoMuellner/opencode-flow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MarcoMuellner/opencode-flow/issues"
+  },
+  "homepage": "https://github.com/MarcoMuellner/opencode-flow#readme",
+  "packageManager": "pnpm@10.33.2",
+  "dependencies": {
+    "@opencode-ai/plugin": "1.17.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.19",
+    "typescript": "5.8.3",
+    "vitest": "3.2.3"
+  }
 }
