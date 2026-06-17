@@ -1,7 +1,7 @@
 import path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
-import type { OpencodeFlowConfig } from "./config.js"
+import type { OpencodeFlowOptions } from "./config.js"
 import { loadWorkflowConfig, resolveWorkflowConfig } from "./config.js"
 import { createOpencodeStepRunner, executeWorkflow } from "./execution.js"
 import type {
@@ -52,32 +52,23 @@ function formatWorkflowResult(
 /**
  * opencode-workflow plugin entrypoint.
  *
- * Loads named workflows from opencode configuration and validates them
+ * Loads named workflows from plugin tuple options and validates them
  * before any workflow step runs. Exposes a custom tool that triggers a
  * configured workflow by name.
  */
-export const OpencodeFlowPlugin: Plugin = async (ctx) => {
-  let workflowConfig: OpencodeFlowConfig | undefined
+export const OpencodeFlowPlugin: Plugin = async (ctx, options) => {
+  const workflowConfig: OpencodeFlowOptions = loadWorkflowConfig(options)
 
   return {
-    config: async (config) => {
-      workflowConfig = loadWorkflowConfig(config)
-    },
     tool: {
       opencode_flow: tool({
         description:
-          "Run a named opencode-workflow workflow defined in the project configuration.",
+          "Run a named opencode-workflow workflow defined in the plugin options.",
         args: {
           workflowName: tool.schema.string().min(1),
           args: tool.schema.object({}).optional(),
         },
         async execute(args, context) {
-          if (!workflowConfig) {
-            throw new Error(
-              "opencode-workflow configuration has not been loaded. Make sure the plugin is enabled and opencodeFlow is configured."
-            )
-          }
-
           const opencodeDir = path.join(context.directory, ".opencode")
           const resolvedConfig = resolveWorkflowConfig(
             workflowConfig,

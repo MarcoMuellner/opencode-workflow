@@ -39,8 +39,8 @@ export interface WorkflowConfig {
   steps: WorkflowStepConfig[]
 }
 
-/** Plugin-specific configuration loaded from opencode config. */
-export interface OpencodeFlowConfig {
+/** Plugin options passed through the opencode plugin tuple. */
+export interface OpencodeFlowOptions {
   /** Named workflows keyed by workflow name. */
   workflows: Record<string, WorkflowConfig>
 }
@@ -115,7 +115,7 @@ import path from "node:path"
  * @throws {Error} When a prompt file path escapes `.opencode` or cannot be read.
  */
 export function resolveWorkflowConfig(
-  config: OpencodeFlowConfig,
+  config: OpencodeFlowOptions,
   opencodeDir: string
 ): Record<string, ResolvedWorkflowConfig> {
   const resolved: Record<string, ResolvedWorkflowConfig> = {}
@@ -140,46 +140,36 @@ export function resolveWorkflowConfig(
 }
 
 /**
- * Load and validate workflow definitions from an opencode config object.
+ * Load and validate workflow definitions from the plugin tuple options.
  *
  * Throws clear, actionable errors for missing or invalid configuration
  * before any workflow step can run.
  *
- * @param config - The opencode config object, including the `opencodeFlow` key.
+ * @param options - The plugin options object passed to the plugin function.
  * @returns A typed, normalized workflow config object.
  * @throws {Error} When the configuration is missing or invalid.
  */
-export function loadWorkflowConfig(config: unknown): OpencodeFlowConfig {
-  if (typeof config !== "object" || config === null) {
-    throw new Error("Invalid opencode config: expected an object.")
+export function loadWorkflowConfig(options: unknown): OpencodeFlowOptions {
+  if (typeof options !== "object" || options === null) {
+    throw new Error(
+      "Invalid opencode-workflow plugin options: expected an object."
+    )
   }
 
-  const root = config as Record<string, unknown>
+  const root = options as Record<string, unknown>
 
-  if (!("opencodeFlow" in root)) {
-    throw new Error("Missing opencodeFlow configuration.")
+  if (!("workflows" in root)) {
+    throw new Error("opencode-workflow plugin options require a workflows key.")
   }
 
-  const opencodeFlow = root.opencodeFlow
-
-  if (typeof opencodeFlow !== "object" || opencodeFlow === null) {
-    throw new Error("Invalid opencodeFlow configuration: expected an object.")
-  }
-
-  const flow = opencodeFlow as Record<string, unknown>
-
-  if (!("workflows" in flow)) {
-    throw new Error("opencodeFlow.workflows is required.")
-  }
-
-  const workflows = flow.workflows
+  const workflows = root.workflows
 
   if (
     typeof workflows !== "object" ||
     workflows === null ||
     Array.isArray(workflows)
   ) {
-    throw new Error("Invalid opencodeFlow.workflows: expected an object.")
+    throw new Error("Invalid opencode-workflow workflows: expected an object.")
   }
 
   const workflowEntries = Object.entries(workflows)

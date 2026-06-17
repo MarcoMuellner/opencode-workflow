@@ -1,6 +1,6 @@
 {
   "name": "opencode-workflow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "An npm-distributed opencode plugin that runs named sequential workflows from opencode configuration.",
   "type": "module",
   "main": "./dist/index.js",

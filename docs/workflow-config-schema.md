@@ -1,24 +1,25 @@
 # Workflow Config Schema
 
 This document defines the public configuration shape for `opencode-workflow`.
-It is the source of truth for config loading, validation, and execution in later tasks.
+It is the source of truth for config loading, validation, and execution.
 
 ## Overview
 
-`opencode-workflow` reads named workflows from the opencode configuration.
-There is no built-in default workflow. Users must define at least one workflow
-and trigger it explicitly by name.
+`opencode-workflow` reads named workflows from the plugin tuple options in
+`opencode.json`. There is no built-in default workflow. Users must define at
+least one workflow and trigger it explicitly by name.
 
-In the MVP, every workflow step receives an automatic clarification instruction
-that tells the agent to use opencode's question tool when clarification is needed.
-The clarification policy is not configurable through this schema.
+Every workflow step receives an automatic clarification instruction that tells
+the agent to use opencode's question tool when clarification is needed. The
+clarification policy is not configurable through this schema.
 
 ## Triggering workflows
 
-Workflows are triggered through the plugin's `opencode_flow` custom tool.
-The caller must provide the exact workflow name from `opencodeFlow.workflows`.
-A common integration is an opencode custom command that forwards its argument
-as the `workflowName` tool argument, for example:
+Workflows are triggered through the plugin's `opencode_flow` custom tool. The
+caller must provide the exact workflow name from the plugin options `workflows`
+object.
+
+Example custom command:
 
 ```md
 ---
@@ -31,13 +32,12 @@ Run the opencode-workflow workflow named "$ARGUMENTS" using the `opencode_flow` 
 No workflow key is treated as a default. Calling the tool with an unknown name
 fails with the list of configured workflow names.
 
-### Tool arguments
+### Tool Arguments
 
 The `opencode_flow` tool accepts:
 
-- `workflowName` (string, required) — the workflow to run.
-- `args` (object, optional) — structured arguments forwarded into every step
-  prompt. Each top-level entry is rendered with its JSON value in the prompt.
+- `workflowName` (string, required): the workflow to run.
+- `args` (object, optional): structured arguments forwarded into every step prompt. Each top-level entry is rendered with its JSON value in the prompt.
 
 Example:
 
@@ -57,38 +57,40 @@ Workflow arguments:
 - githubProjectNumber: 3
 ```
 
-## Top-level key
+## Plugin Options
 
-Workflow configuration lives under `opencodeFlow` in `opencode.json`.
+Workflow configuration lives in the second item of the `plugin` tuple in
+`opencode.json`.
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-workflow"],
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "Review the change for correctness and risks.",
-            "model": "anthropic/claude-sonnet-4"
+  "plugin": [
+    [
+      "opencode-workflow",
+      {
+        "workflows": {
+          "review": {
+            "steps": [
+              {
+                "prompt": "Review the change for correctness and risks.",
+                "model": "anthropic/claude-sonnet-4"
+              }
+            ]
           }
-        ]
+        }
       }
-    }
-  }
+    ]
+  ]
 }
 ```
 
-## Schema definition
+Do not use a custom top-level key such as `opencodeFlow`; opencode rejects
+unknown top-level config keys before plugins can load.
 
-### `opencodeFlow`
+## Schema Definition
 
-- **Type:** `object`
-- **Required.**
-- Root container for this plugin's configuration.
-
-### `opencodeFlow.workflows`
+### `workflows`
 
 - **Type:** `object`
 - **Required.**
@@ -97,7 +99,7 @@ Workflow configuration lives under `opencodeFlow` in `opencode.json`.
 - There must be at least one workflow.
 - No key is treated as a default. Every workflow must be invoked by name.
 
-### Workflow object
+### Workflow Object
 
 - **Type:** `object`
 - Must contain a `steps` array.
@@ -110,12 +112,10 @@ Workflow configuration lives under `opencodeFlow` in `opencode.json`.
 - Must contain at least one step.
 - Array order is execution order.
 
-### Step object
+### Step Object
 
 - **Type:** `object`
-- **Required fields:**
-  - `prompt`
-  - `model`
+- **Required fields:** `prompt`, `model`
 - No other fields are allowed unless explicitly documented later.
 
 #### `prompt`
@@ -123,155 +123,33 @@ Workflow configuration lives under `opencodeFlow` in `opencode.json`.
 - **Type:** `string`
 - **Required.**
 - Must be non-empty after trimming whitespace.
-- The user-authored text is kept intact. The runtime will append the
-  clarification instruction automatically in MVP.
-- If the value looks like a file path (no spaces, or ends in `.md`, `.txt`,
-  or `.prompt`), the runtime attempts to read it relative to the `.opencode/`
-  directory.
-- Prompt file paths must be relative to `.opencode/` and cannot use `..` or
-  absolute paths to escape it.
+- The user-authored text is kept intact. The runtime appends the clarification instruction automatically.
+- If the value looks like a file path (no spaces, or ends in `.md`, `.txt`, or `.prompt`), the runtime attempts to read it relative to the `.opencode/` directory.
+- Prompt file paths must be relative to `.opencode/` and cannot use `..` or absolute paths to escape it.
 
 #### `model`
 
 - **Type:** `string`
 - **Required.**
 - Must be a non-empty string after trimming whitespace.
-- The value is free-form in this schema. Runtime validation in later tasks
-  decides which values are supported and how unsupported values are reported.
+- The value is free-form in this schema. Runtime validation decides which values are supported and how unsupported values are reported.
 
-## Clarification policy
+## Validation Intent
 
-- The MVP always injects the same clarification instruction into every step prompt.
-- The instruction tells the agent to use opencode's question tool whenever
-  clarification is needed before proceeding.
-- This behavior is not configurable in the schema.
+Invalid config must fail before any workflow step runs. Errors should point to
+the problematic workflow or step.
 
-## Validation intent
+## Valid Examples
 
-Invalid config must fail before any workflow step runs.
-Errors should point to the problematic workflow or step.
-
-## Valid examples
-
-### Minimal single-step workflow
+### Minimal Single-Step Workflow
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "summarize": {
-        "steps": [
-          {
-            "prompt": "Summarize the recent changes in plain language.",
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-### Multi-step workflow with ordered steps
-
-```json
-{
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "List the files changed in this branch and explain what each change does.",
-            "model": "anthropic/claude-sonnet-4"
-          },
-          {
-            "prompt": "Identify the main risks introduced by those changes.",
-            "model": "anthropic/claude-sonnet-4"
-          },
-          {
-            "prompt": "Suggest concrete fixes or tests for the highest risks.",
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-### Multiple named workflows
-
-```json
-{
-  "opencodeFlow": {
-    "workflows": {
-      "summarize": {
-        "steps": [
-          {
-            "prompt": "Summarize the recent changes.",
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      },
-      "review": {
-        "steps": [
-          {
-            "prompt": "Review the change for correctness and risks.",
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-## Invalid examples
-
-These examples are invalid and must be rejected by runtime validation.
-They are documented here so they can be used as test cases.
-
-### Missing top-level config
-
-```json
-{
-  "plugin": ["opencode-workflow"]
-}
-```
-
-Expected failure: missing `opencodeFlow` configuration.
-
-### Missing workflows
-
-```json
-{
-  "opencodeFlow": {}
-}
-```
-
-Expected failure: `workflows` is required.
-
-### Empty workflows
-
-```json
-{
-  "opencodeFlow": {
-    "workflows": {}
-  }
-}
-```
-
-Expected failure: at least one workflow must be defined.
-
-### Implicit default workflow
-
-```json
-{
-  "opencodeFlow": {
-    "workflows": {
+  "workflows": {
+    "summarize": {
       "steps": [
         {
-          "prompt": "Do something.",
+          "prompt": "Summarize the recent changes in plain language.",
           "model": "anthropic/claude-sonnet-4"
         }
       ]
@@ -280,32 +158,123 @@ Expected failure: at least one workflow must be defined.
 }
 ```
 
-Expected failure: `steps` is not a valid workflow name object. Workflow names
-must be object keys, and there is no implicit default workflow.
-
-### Missing steps
+### Multi-Step Workflow With Ordered Steps
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {}
+  "workflows": {
+    "review": {
+      "steps": [
+        {
+          "prompt": "List the files changed in this branch and explain what each change does.",
+          "model": "anthropic/claude-sonnet-4"
+        },
+        {
+          "prompt": "Identify the main risks introduced by those changes.",
+          "model": "anthropic/claude-sonnet-4"
+        },
+        {
+          "prompt": "Suggest concrete fixes or tests for the highest risks.",
+          "model": "anthropic/claude-sonnet-4"
+        }
+      ]
     }
+  }
+}
+```
+
+### Multiple Named Workflows
+
+```json
+{
+  "workflows": {
+    "summarize": {
+      "steps": [
+        {
+          "prompt": "Summarize the recent changes.",
+          "model": "anthropic/claude-sonnet-4"
+        }
+      ]
+    },
+    "review": {
+      "steps": [
+        {
+          "prompt": "Review the change for correctness and risks.",
+          "model": "anthropic/claude-sonnet-4"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Invalid Examples
+
+These examples are invalid and must be rejected by runtime validation.
+
+### Missing Plugin Options
+
+```json
+undefined
+```
+
+Expected failure: plugin options must be an object.
+
+### Missing Workflows
+
+```json
+{}
+```
+
+Expected failure: `workflows` is required.
+
+### Empty Workflows
+
+```json
+{
+  "workflows": {}
+}
+```
+
+Expected failure: at least one workflow must be defined.
+
+### Implicit Default Workflow
+
+```json
+{
+  "workflows": {
+    "steps": [
+      {
+        "prompt": "Do something.",
+        "model": "anthropic/claude-sonnet-4"
+      }
+    ]
+  }
+}
+```
+
+Expected failure: `steps` is not a valid workflow object. Workflow names must be
+object keys, and there is no implicit default workflow.
+
+### Missing Steps
+
+```json
+{
+  "workflows": {
+    "review": {}
   }
 }
 ```
 
 Expected failure: workflow `review` has no `steps` array.
 
-### Empty steps
+### Empty Steps
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": []
-      }
+  "workflows": {
+    "review": {
+      "steps": []
     }
   }
 }
@@ -313,19 +282,17 @@ Expected failure: workflow `review` has no `steps` array.
 
 Expected failure: workflow `review` has no steps.
 
-### Missing prompt
+### Missing Prompt
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      }
+  "workflows": {
+    "review": {
+      "steps": [
+        {
+          "model": "anthropic/claude-sonnet-4"
+        }
+      ]
     }
   }
 }
@@ -333,20 +300,18 @@ Expected failure: workflow `review` has no steps.
 
 Expected failure: step 0 in workflow `review` is missing `prompt`.
 
-### Empty prompt
+### Empty Prompt
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "",
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      }
+  "workflows": {
+    "review": {
+      "steps": [
+        {
+          "prompt": "",
+          "model": "anthropic/claude-sonnet-4"
+        }
+      ]
     }
   }
 }
@@ -354,19 +319,17 @@ Expected failure: step 0 in workflow `review` is missing `prompt`.
 
 Expected failure: step 0 in workflow `review` has an empty `prompt`.
 
-### Missing model
+### Missing Model
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "Review the change."
-          }
-        ]
-      }
+  "workflows": {
+    "review": {
+      "steps": [
+        {
+          "prompt": "Review the change."
+        }
+      ]
     }
   }
 }
@@ -374,20 +337,18 @@ Expected failure: step 0 in workflow `review` has an empty `prompt`.
 
 Expected failure: step 0 in workflow `review` is missing `model`.
 
-### Empty model
+### Empty Model
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "Review the change.",
-            "model": ""
-          }
-        ]
-      }
+  "workflows": {
+    "review": {
+      "steps": [
+        {
+          "prompt": "Review the change.",
+          "model": ""
+        }
+      ]
     }
   }
 }
@@ -395,43 +356,40 @@ Expected failure: step 0 in workflow `review` is missing `model`.
 
 Expected failure: step 0 in workflow `review` has an empty `model`.
 
-### Unknown step field
+### Unknown Step Field
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "Review the change.",
-            "model": "anthropic/claude-sonnet-4",
-            "temperature": 0.2
-          }
-        ]
-      }
+  "workflows": {
+    "review": {
+      "steps": [
+        {
+          "prompt": "Review the change.",
+          "model": "anthropic/claude-sonnet-4",
+          "temperature": 0.2
+        }
+      ]
     }
   }
 }
 ```
 
-Expected failure: step 0 in workflow `review` contains unknown field `temperature`.
+Expected failure: step 0 in workflow `review` contains unknown field
+`temperature`.
 
-### Unknown workflow field
+### Unknown Workflow Field
 
 ```json
 {
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "description": "A review workflow",
-        "steps": [
-          {
-            "prompt": "Review the change.",
-            "model": "anthropic/claude-sonnet-4"
-          }
-        ]
-      }
+  "workflows": {
+    "review": {
+      "description": "A review workflow",
+      "steps": [
+        {
+          "prompt": "Review the change.",
+          "model": "anthropic/claude-sonnet-4"
+        }
+      ]
     }
   }
 }

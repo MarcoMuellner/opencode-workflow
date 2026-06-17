@@ -1,25 +1,18 @@
 # opencode-workflow
 
-An [opencode](https://opencode.ai) plugin that runs named sequential workflows from your opencode configuration.
+An [opencode](https://opencode.ai) plugin that runs named sequential workflows from your opencode plugin options.
 
-`opencode-workflow` reads workflow definitions from `opencode.json`, then executes them step by step through the opencode SDK. Each workflow is a list of prompts and models. Steps run in order, later steps automatically receive the outputs of earlier steps, and every step receives a built-in clarification instruction. There is no built-in default workflow; every workflow must be configured and invoked by name.
+`opencode-workflow` reads workflow definitions from its configured plugin options in `opencode.json`, then executes them step by step through the opencode SDK. Each workflow is a list of prompts and models. Steps run in order, later steps automatically receive the outputs of earlier steps, and every step receives a built-in clarification instruction. There is no built-in default workflow; every workflow must be configured and invoked by name.
 
 ## Install
 
-`opencode-workflow` is distributed as an npm plugin. Enable it by adding `opencode-workflow` to the `plugin` list in your `opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-workflow"]
-}
-```
+`opencode-workflow` is distributed as an npm plugin. Enable it by adding `opencode-workflow` to the `plugin` list in your `opencode.json` using the tuple form shown below.
 
 opencode installs npm plugins automatically at startup. Restart opencode after adding or updating the plugin list.
 
 ## Configure a workflow
 
-Define named workflows under the `opencodeFlow` key in `opencode.json`. Each workflow must contain at least one step, and each step must have a `prompt` and a `model`.
+Define named workflows in the plugin tuple options in `opencode.json`. Each workflow must contain at least one step, and each step must have a `prompt` and a `model`.
 
 A step `prompt` may be either:
 
@@ -31,19 +24,23 @@ A step `prompt` may be either:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-workflow"],
-  "opencodeFlow": {
-    "workflows": {
-      "summarize": {
-        "steps": [
-          {
-            "prompt": "Summarize the recent changes in plain language.",
-            "model": "anthropic/claude-sonnet-4"
+  "plugin": [
+    [
+      "opencode-workflow",
+      {
+        "workflows": {
+          "summarize": {
+            "steps": [
+              {
+                "prompt": "Summarize the recent changes in plain language.",
+                "model": "anthropic/claude-sonnet-4"
+              }
+            ]
           }
-        ]
+        }
       }
-    }
-  }
+    ]
+  ]
 }
 ```
 
@@ -54,19 +51,23 @@ Store long prompts under `.opencode/` and reference them by relative path.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-workflow"],
-  "opencodeFlow": {
-    "workflows": {
-      "review": {
-        "steps": [
-          {
-            "prompt": "prompts/review.md",
-            "model": "anthropic/claude-sonnet-4"
+  "plugin": [
+    [
+      "opencode-workflow",
+      {
+        "workflows": {
+          "review": {
+            "steps": [
+              {
+                "prompt": "prompts/review.md",
+                "model": "anthropic/claude-sonnet-4"
+              }
+            ]
           }
-        ]
+        }
       }
-    }
-  }
+    ]
+  ]
 }
 ```
 
@@ -83,27 +84,31 @@ The following `pir-piv` workflow is an example only. It demonstrates how to chai
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-workflow"],
-  "opencodeFlow": {
-    "workflows": {
-      "pir-piv": {
-        "steps": [
-          {
-            "prompt": "Review the current branch changes. List every file that was added, modified, or deleted, and explain in one sentence what each change does.",
-            "model": "anthropic/claude-sonnet-4"
-          },
-          {
-            "prompt": "Based on the file summaries above, identify the main risks, assumptions, and open questions introduced by these changes.",
-            "model": "anthropic/claude-sonnet-4"
-          },
-          {
-            "prompt": "For the highest risks identified above, suggest concrete fixes, tests, or follow-up questions that should be addressed before merging.",
-            "model": "anthropic/claude-sonnet-4"
+  "plugin": [
+    [
+      "opencode-workflow",
+      {
+        "workflows": {
+          "pir-piv": {
+            "steps": [
+              {
+                "prompt": "Review the current branch changes. List every file that was added, modified, or deleted, and explain in one sentence what each change does.",
+                "model": "anthropic/claude-sonnet-4"
+              },
+              {
+                "prompt": "Based on the file summaries above, identify the main risks, assumptions, and open questions introduced by these changes.",
+                "model": "anthropic/claude-sonnet-4"
+              },
+              {
+                "prompt": "For the highest risks identified above, suggest concrete fixes, tests, or follow-up questions that should be addressed before merging.",
+                "model": "anthropic/claude-sonnet-4"
+              }
+            ]
           }
-        ]
+        }
       }
-    }
-  }
+    ]
+  ]
 }
 ```
 
@@ -143,7 +148,7 @@ This makes values like project numbers, flags, or identifiers available to every
 ## How it works
 
 - `opencode-workflow` exposes a single custom tool named `opencode_flow`.
-- The tool requires a `workflowName` that matches one of the keys under `opencodeFlow.workflows`.
+- The tool requires a `workflowName` that matches one of the keys under the plugin options `workflows` object.
 - Steps run in the order they appear in the configuration.
 - Each later step receives the accumulated outputs from previous steps.
 - A clarification instruction is injected automatically into every step prompt, telling the agent to ask for clarification when anything is unclear.
