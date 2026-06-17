@@ -19,11 +19,13 @@ export interface OpencodeStepRunnerClient {
         parts: Array<{ type: "text"; text: string }>
       }
     }) => Promise<{
-      data?: {
-        info: { error?: unknown }
-        parts: Array<unknown>
-      }
-      error?: unknown
+      data?:
+        | {
+            info: { error?: unknown }
+            parts: Array<unknown>
+          }
+        | undefined
+      error?: unknown | undefined
     }>
   }
 }

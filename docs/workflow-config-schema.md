@@ -13,6 +13,24 @@ In the MVP, every workflow step receives an automatic clarification instruction
 that tells the agent to use opencode's question tool when clarification is needed.
 The clarification policy is not configurable through this schema.
 
+## Triggering workflows
+
+Workflows are triggered through the plugin's `opencode_flow` custom tool.
+The caller must provide the exact workflow name from `opencodeFlow.workflows`.
+A common integration is an opencode custom command that forwards its argument
+as the `workflowName` tool argument, for example:
+
+```md
+---
+description: Run a named opencode-flow workflow
+---
+
+Run the opencode-flow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
+```
+
+No workflow key is treated as a default. Calling the tool with an unknown name
+fails with the list of configured workflow names.
+
 ## Top-level key
 
 Workflow configuration lives under `opencodeFlow` in `opencode.json`.

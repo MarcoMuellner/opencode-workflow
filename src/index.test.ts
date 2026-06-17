@@ -1,9 +1,94 @@
-import type { Config } from "@opencode-ai/plugin"
+import type { Config, PluginInput } from "@opencode-ai/plugin"
 import { describe, expect, it } from "vitest"
+import type { OpencodeStepRunnerClient } from "./execution.js"
 import { OpencodeFlowPlugin, executeWorkflow } from "./index.js"
 
 function asConfig(value: Record<string, unknown>): Config {
   return value as Config
+}
+
+function makeValidConfig(): Config {
+  return asConfig({
+    opencodeFlow: {
+      workflows: {
+        review: {
+          steps: [
+            {
+              prompt: "Review the change.",
+              model: "anthropic/claude-sonnet-4",
+            },
+          ],
+        },
+        summarize: {
+          steps: [
+            {
+              prompt: "Summarize the recent changes.",
+              model: "anthropic/claude-sonnet-4",
+            },
+          ],
+        },
+      },
+    },
+  })
+}
+
+function makeFakePluginInput(
+  responses: string[]
+): PluginInput & { capturedPrompts: unknown[] } {
+  const capturedPrompts: unknown[] = []
+  let callIndex = 0
+
+  const client: OpencodeStepRunnerClient = {
+    session: {
+      prompt: async (options: unknown) => {
+        capturedPrompts.push(options)
+        const text = responses[callIndex++]
+
+        if (text === undefined) {
+          throw new Error(`No configured response for call ${callIndex}`)
+        }
+
+        return {
+          data: {
+            info: {},
+            parts: [{ type: "text", text }],
+          },
+        }
+      },
+    },
+  }
+
+  return {
+    capturedPrompts,
+    client: client as PluginInput["client"],
+    project: {} as PluginInput["project"],
+    directory: "/project",
+    worktree: "/project",
+    $: {} as PluginInput["$"],
+    experimental_workspace: {
+      register: () => {},
+    },
+    serverUrl: new URL("http://localhost"),
+  }
+}
+
+function makeToolContext() {
+  return {
+    sessionID: "session-1",
+    messageID: "message-1",
+    agent: "build",
+    directory: "/project",
+    worktree: "/project",
+    abort: new AbortController().signal,
+    metadata: () => {},
+    ask: async () => {},
+  }
+}
+
+function getTool(plugin: Awaited<ReturnType<typeof OpencodeFlowPlugin>>) {
+  const flowTool = plugin.tool?.opencode_flow
+  expect(flowTool).toBeDefined()
+  return flowTool!
 }
 
 describe("OpencodeFlowPlugin", () => {
@@ -32,23 +117,9 @@ describe("OpencodeFlowPlugin", () => {
     // Arrange
     const input = {} as Parameters<typeof OpencodeFlowPlugin>[0]
     const plugin = await OpencodeFlowPlugin(input)
-    const config = asConfig({
-      opencodeFlow: {
-        workflows: {
-          review: {
-            steps: [
-              {
-                prompt: "Review the change.",
-                model: "anthropic/claude-sonnet-4",
-              },
-            ],
-          },
-        },
-      },
-    })
 
     // Act
-    const act = async () => plugin.config?.(config)
+    const act = async () => plugin.config?.(makeValidConfig())
 
     // Assert
     await expect(act()).resolves.toBeUndefined()
@@ -65,5 +136,74 @@ describe("OpencodeFlowPlugin", () => {
 
     // Assert
     await expect(act()).rejects.toThrow(/At least one workflow/)
+  })
+
+  it("exposes an opencode_flow custom tool", async () => {
+    // Arrange
+    const input = {} as Parameters<typeof OpencodeFlowPlugin>[0]
+    const plugin = await OpencodeFlowPlugin(input)
+
+    // Assert
+    expect(plugin.tool).toHaveProperty("opencode_flow")
+    expect(plugin.tool?.opencode_flow).toHaveProperty("execute")
+  })
+
+  it("tool runs the requested named workflow by name", async () => {
+    // Arrange
+    const input = makeFakePluginInput(["Summary output."])
+    const plugin = await OpencodeFlowPlugin(input)
+    const config = makeValidConfig()
+
+    await plugin.config?.(config)
+
+    // Act
+    const result = await getTool(plugin).execute(
+      { workflowName: "summarize" },
+      makeToolContext()
+    )
+
+    // Assert
+    expect(result).toContain('Completed workflow "summarize"')
+    expect(result).toContain("Summary output.")
+    expect(input.capturedPrompts).toHaveLength(1)
+    const promptText = (input.capturedPrompts[0] as { body: { parts: { text: string }[] } }).body.parts[0]?.text
+    expect(promptText).toContain("Workflow: summarize")
+    expect(promptText).not.toContain("Workflow: review")
+  })
+
+  it("tool rejects an unknown workflow name with available workflows", async () => {
+    // Arrange
+    const input = makeFakePluginInput([])
+    const plugin = await OpencodeFlowPlugin(input)
+    const config = makeValidConfig()
+
+    await plugin.config?.(config)
+
+    // Act
+    const act = async () =>
+      getTool(plugin).execute(
+        { workflowName: "missing" },
+        makeToolContext()
+      )
+
+    // Assert
+    await expect(act()).rejects.toThrow(/Unknown workflow "missing"/)
+    await expect(act()).rejects.toThrow(/review, summarize/)
+  })
+
+  it("tool rejects execution when config has not been loaded", async () => {
+    // Arrange
+    const input = makeFakePluginInput([])
+    const plugin = await OpencodeFlowPlugin(input)
+
+    // Act
+    const act = async () =>
+      getTool(plugin).execute(
+        { workflowName: "summarize" },
+        makeToolContext()
+      )
+
+    // Assert
+    await expect(act()).rejects.toThrow(/configuration has not been loaded/)
   })
 })
