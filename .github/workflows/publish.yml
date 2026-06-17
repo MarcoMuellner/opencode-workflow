@@ -1,0 +1,84 @@
+name: Publish
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check-and-publish:
+    name: Check and publish
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+
+    steps:
+      - name: Checkout release tag
+        if: github.event_name == 'release'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Checkout nightly SHA
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Node.js for npm trusted publishing
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Enable Corepack and install dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.2 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm run format:check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Publish release to npm
+        if: github.event_name == 'release'
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="${{ github.event.release.tag_name }}"
+          if [ "v${VERSION}" != "${TAG}" ]; then
+            echo "Release tag ${TAG} does not match package.json version ${VERSION}"
+            exit 1
+          fi
+          npm publish --tag latest --access public
+
+      - name: Publish nightly to npm
+        if: github.event_name == 'workflow_run'
+        run: |
+          BASE="$(node -p "require('./package.json').version")"
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          RUN="${{ github.event.workflow_run.run_number }}"
+          ATTEMPT="${{ github.event.workflow_run.run_attempt }}"
+          NIGHTLY_VERSION="${BASE}-nightly.${RUN}.${ATTEMPT}.${SHA:0:7}"
+          echo "Publishing nightly ${NIGHTLY_VERSION}"
+          npm version "${NIGHTLY_VERSION}" --no-git-tag-version --no-commit-hooks
+          npm publish --tag nightly --access public

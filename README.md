@@ -2,11 +2,11 @@
 
 An [opencode](https://opencode.ai) plugin that runs named sequential workflows from your opencode configuration.
 
-`opencode-flow` reads workflow definitions from `opencode.json`, then executes them step by step through the opencode SDK. There is no built-in default workflow; every workflow must be configured and invoked by name.
+`opencode-flow` reads workflow definitions from `opencode.json`, then executes them step by step through the opencode SDK. Each workflow is a list of prompts and models. Steps run in order, later steps automatically receive the outputs of earlier steps, and every step receives a built-in clarification instruction. There is no built-in default workflow; every workflow must be configured and invoked by name.
 
 ## Install
 
-Add the package to your opencode plugins list in `opencode.json`:
+`opencode-flow` is distributed as an npm plugin. Enable it by adding `opencode-flow` to the `plugin` list in your `opencode.json`:
 
 ```json
 {
@@ -15,9 +15,13 @@ Add the package to your opencode plugins list in `opencode.json`:
 }
 ```
 
+opencode installs npm plugins automatically at startup. Restart opencode after adding or updating the plugin list.
+
 ## Configure a workflow
 
-Define named workflows under the `opencodeFlow` key:
+Define named workflows under the `opencodeFlow` key in `opencode.json`. Each workflow must contain at least one step, and each step must have a `prompt` and a `model`.
+
+### Minimal single-step workflow
 
 ```json
 {
@@ -25,14 +29,10 @@ Define named workflows under the `opencodeFlow` key:
   "plugin": ["opencode-flow"],
   "opencodeFlow": {
     "workflows": {
-      "review": {
+      "summarize": {
         "steps": [
           {
-            "prompt": "List the files changed in this branch and explain what each change does.",
-            "model": "anthropic/claude-sonnet-4"
-          },
-          {
-            "prompt": "Identify the main risks introduced by those changes.",
+            "prompt": "Summarize the recent changes in plain language.",
             "model": "anthropic/claude-sonnet-4"
           }
         ]
@@ -41,6 +41,39 @@ Define named workflows under the `opencodeFlow` key:
   }
 }
 ```
+
+### Complete multi-step workflow example
+
+The following `pir-piv` workflow is an example only. It demonstrates how to chain steps so that later prompts can build on earlier outputs. Adapt the prompts to your own process.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-flow"],
+  "opencodeFlow": {
+    "workflows": {
+      "pir-piv": {
+        "steps": [
+          {
+            "prompt": "Review the current branch changes. List every file that was added, modified, or deleted, and explain in one sentence what each change does.",
+            "model": "anthropic/claude-sonnet-4"
+          },
+          {
+            "prompt": "Based on the file summaries above, identify the main risks, assumptions, and open questions introduced by these changes.",
+            "model": "anthropic/claude-sonnet-4"
+          },
+          {
+            "prompt": "For the highest risks identified above, suggest concrete fixes, tests, or follow-up questions that should be addressed before merging.",
+            "model": "anthropic/claude-sonnet-4"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+This workflow is not built in; it is included here as a starting point. You can copy, rename, and modify it.
 
 ## Trigger a workflow from a custom command
 
@@ -52,29 +85,43 @@ description: Run a named opencode-flow workflow
 agent: build
 ---
 
-Run the opencode-flow workflow named "$ARGUMENTS".
+Run the opencode-flow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
+
+If "$ARGUMENTS" is empty, ask the user which configured workflow to run. Do not choose a default workflow.
 
 Use the `opencode_flow` tool with:
-- workflowName: "$ARGUMENTS"
 
-If "$ARGUMENTS" is empty, ask which configured workflow to run. Do not choose a default workflow.
+- workflowName: "$ARGUMENTS"
 ```
 
 Usage in the TUI:
 
 ```text
-/flow review
+/flow summarize
+/flow pir-piv
 ```
 
 `$ARGUMENTS` becomes the `workflowName` argument to the plugin tool, so any configured workflow can be triggered by name.
+
+## How it works
+
+- `opencode-flow` exposes a single custom tool named `opencode_flow`.
+- The tool requires a `workflowName` that matches one of the keys under `opencodeFlow.workflows`.
+- Steps run in the order they appear in the configuration.
+- Each later step receives the accumulated outputs from previous steps.
+- A clarification instruction is injected automatically into every step prompt, telling the agent to ask for clarification when anything is unclear.
+- Invalid configuration fails before any step runs.
+- Calling the tool with an unknown workflow name fails and lists the configured workflow names.
+- There is no built-in default workflow. If the command is called without a workflow name, the agent should ask the user rather than guess.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm test
-pnpm run typecheck
-pnpm run build
+pnpm run check   # format:check + lint + typecheck + test + build
+pnpm run format  # apply prettier formatting
+pnpm run lint    # run oxlint
+pnpm run lint:fix # run oxlint with auto-fix
 ```
 
 ## Build
@@ -85,3 +132,34 @@ pnpm run build
 
 This produces the compiled output in `dist/`.
 
+## Release setup
+
+This package is published to the npm registry from GitHub Actions using npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC). No long-lived npm token is stored in GitHub. Before automated publishes work, complete these steps manually:
+
+1. **Confirm npm package ownership.** The name `opencode-flow` already exists on npm. Make sure you own that package or choose a different name in `package.json`.
+2. **Enable the trusted publisher on npmjs.com:**
+   - Open `https://www.npmjs.com/package/opencode-flow/access` → **Trusted Publisher**.
+   - Select **GitHub Actions**.
+   - Fill in:
+     - Owner: `MarcoMuellner`
+     - Repository: `opencode-flow`
+     - Workflow filename: `publish.yml`
+     - Allowed action: `npm publish`
+   - Save the trusted publisher.
+3. **Protect the main branch in GitHub.**
+   - Go to `Settings → Branches → Add rule`.
+   - Require the `CI` workflow to pass before merging.
+   - Restrict who can push to `main`.
+4. **Release a version.**
+   - Ensure `package.json` version matches the intended GitHub release tag (for example, tag `v0.2.0` needs version `0.2.0`).
+   - Create a GitHub release with the tag; the `publish.yml` workflow will publish to npm with the `latest` dist-tag.
+
+### Nightly builds
+
+Every push to `main` that passes the `CI` workflow also triggers `publish.yml` and publishes a unique prerelease version to npm under the `nightly` dist-tag. The version looks like `<base>-nightly.<run>.<attempt>.<sha>`.
+
+### npm publishing security notes
+
+- The publish workflow uses Node 24 and `id-token: write` so npm can authenticate via OIDC.
+- Provenance attestations are generated automatically because publishing happens through GitHub Actions trusted publishing from a public repository.
+- After the first successful automated publish, consider switching the package’s publishing access to **Require 2FA and disallow tokens** for maximum security.

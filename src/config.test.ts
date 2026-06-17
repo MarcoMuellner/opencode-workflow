@@ -72,7 +72,9 @@ describe("loadWorkflowConfig", () => {
     // Assert
     expect(Object.keys(result.workflows)).toEqual(["review", "summarize"])
     expect(result.workflows.review?.steps).toHaveLength(2)
-    expect(result.workflows.review?.steps[0]?.prompt).toBe("List changed files.")
+    expect(result.workflows.review?.steps[0]?.prompt).toBe(
+      "List changed files."
+    )
     expect(result.workflows.review?.steps[1]?.prompt).toBe("Identify risks.")
   })
 
@@ -266,9 +268,7 @@ describe("loadWorkflowConfig", () => {
       opencodeFlow: {
         workflows: {
           review: {
-            steps: [
-              { prompt: "", model: "anthropic/claude-sonnet-4" },
-            ],
+            steps: [{ prompt: "", model: "anthropic/claude-sonnet-4" }],
           },
         },
       },
@@ -287,9 +287,7 @@ describe("loadWorkflowConfig", () => {
       opencodeFlow: {
         workflows: {
           review: {
-            steps: [
-              { prompt: "   ", model: "anthropic/claude-sonnet-4" },
-            ],
+            steps: [{ prompt: "   ", model: "anthropic/claude-sonnet-4" }],
           },
         },
       },
@@ -408,7 +406,9 @@ describe("loadWorkflowConfig", () => {
     const act = () => loadWorkflowConfig(config)
 
     // Assert
-    expect(act).toThrow(/workflow "review" contains unknown field "description"/i)
+    expect(act).toThrow(
+      /workflow "review" contains unknown field "description"/i
+    )
   })
 
   it("rejects an empty workflow name", () => {

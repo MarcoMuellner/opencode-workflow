@@ -166,7 +166,9 @@ describe("OpencodeFlowPlugin", () => {
     expect(result).toContain('Completed workflow "summarize"')
     expect(result).toContain("Summary output.")
     expect(input.capturedPrompts).toHaveLength(1)
-    const promptText = (input.capturedPrompts[0] as { body: { parts: { text: string }[] } }).body.parts[0]?.text
+    const promptText = (
+      input.capturedPrompts[0] as { body: { parts: { text: string }[] } }
+    ).body.parts[0]?.text
     expect(promptText).toContain("Workflow: summarize")
     expect(promptText).not.toContain("Workflow: review")
   })
@@ -181,10 +183,7 @@ describe("OpencodeFlowPlugin", () => {
 
     // Act
     const act = async () =>
-      getTool(plugin).execute(
-        { workflowName: "missing" },
-        makeToolContext()
-      )
+      getTool(plugin).execute({ workflowName: "missing" }, makeToolContext())
 
     // Assert
     await expect(act()).rejects.toThrow(/Unknown workflow "missing"/)
@@ -198,10 +197,7 @@ describe("OpencodeFlowPlugin", () => {
 
     // Act
     const act = async () =>
-      getTool(plugin).execute(
-        { workflowName: "summarize" },
-        makeToolContext()
-      )
+      getTool(plugin).execute({ workflowName: "summarize" }, makeToolContext())
 
     // Assert
     await expect(act()).rejects.toThrow(/configuration has not been loaded/)

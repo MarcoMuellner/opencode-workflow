@@ -53,7 +53,11 @@ export function loadWorkflowConfig(config: unknown): OpencodeFlowConfig {
 
   const workflows = flow.workflows
 
-  if (typeof workflows !== "object" || workflows === null || Array.isArray(workflows)) {
+  if (
+    typeof workflows !== "object" ||
+    workflows === null ||
+    Array.isArray(workflows)
+  ) {
     throw new Error("Invalid opencodeFlow.workflows: expected an object.")
   }
 

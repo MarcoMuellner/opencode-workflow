@@ -8,7 +8,10 @@ function makeStep(prompt: string, model: string) {
 describe("buildStepPrompt", () => {
   it("includes the user prompt and the clarification instruction", () => {
     // Arrange
-    const step = makeStep("Summarize the recent changes.", "anthropic/claude-sonnet-4")
+    const step = makeStep(
+      "Summarize the recent changes.",
+      "anthropic/claude-sonnet-4"
+    )
 
     // Act
     const result = buildStepPrompt({
@@ -61,7 +64,11 @@ describe("buildStepPrompt", () => {
     // Arrange
     const step = makeStep("Identify risks.", "anthropic/claude-sonnet-4")
     const previousOutputs = [
-      { stepIndex: 0, prompt: "List changed files.", output: "Changed src/index.ts." },
+      {
+        stepIndex: 0,
+        prompt: "List changed files.",
+        output: "Changed src/index.ts.",
+      },
     ]
 
     // Act
@@ -87,7 +94,10 @@ describe("buildStepPrompt", () => {
 
   it("preserves user-authored prompt text exactly", () => {
     // Arrange
-    const step = makeStep("  Keep surrounding spaces.  \n\nAnd newlines.", "anthropic/claude-sonnet-4")
+    const step = makeStep(
+      "  Keep surrounding spaces.  \n\nAnd newlines.",
+      "anthropic/claude-sonnet-4"
+    )
 
     // Act
     const result = buildStepPrompt({

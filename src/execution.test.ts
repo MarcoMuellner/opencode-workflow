@@ -32,7 +32,10 @@ function makeInMemoryRunner(outputs: string[]): WorkflowStepRunner {
 }
 
 function makeFakeClient(
-  response: { data?: { info: { error?: unknown }; parts: unknown[] }; error?: unknown } = {
+  response: {
+    data?: { info: { error?: unknown }; parts: unknown[] }
+    error?: unknown
+  } = {
     data: { info: {}, parts: [] },
   }
 ): OpencodeStepRunnerClient {
@@ -185,7 +188,8 @@ describe("createOpencodeStepRunner", () => {
       step: { prompt: "Check this.", model: "anthropic/claude-sonnet-4" },
       stepIndex: 0,
       totalSteps: 1,
-      prompt: "Workflow: review\nStep: 1 of 1\n\nUser-authored step prompt:\nCheck this.",
+      prompt:
+        "Workflow: review\nStep: 1 of 1\n\nUser-authored step prompt:\nCheck this.",
       previousOutputs: [],
     })
 

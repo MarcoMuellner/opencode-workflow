@@ -160,10 +160,15 @@ export function createOpencodeStepRunner(
 
     const textParts = data.parts.filter(
       (part: unknown): part is { type: "text"; text: string } =>
-        typeof part === "object" && part !== null && "type" in part && part.type === "text"
+        typeof part === "object" &&
+        part !== null &&
+        "type" in part &&
+        part.type === "text"
     )
 
-    return textParts.map((part: { type: "text"; text: string }) => part.text).join("")
+    return textParts
+      .map((part: { type: "text"; text: string }) => part.text)
+      .join("")
   }
 }
 
@@ -255,6 +260,7 @@ export async function executeWorkflow(
     })
 
     try {
+      // oxlint-disable-next-line no-await-in-loop -- workflow steps are intentionally sequential
       const output = await runner({
         workflowName,
         step,

@@ -6,7 +6,6 @@ import { createOpencodeStepRunner, executeWorkflow } from "./execution.js"
 import type {
   OpencodeStepRunnerClient,
   WorkflowExecutionResult,
-  WorkflowStepExecutionOutput,
 } from "./execution.js"
 
 export {

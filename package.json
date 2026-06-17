@@ -19,7 +19,16 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "lint": "oxlint -c .oxlintrc.json",
+    "lint:fix": "oxlint -c .oxlintrc.json --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "prepack": "pnpm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "keywords": [
     "opencode",
@@ -43,6 +52,8 @@
   },
   "devDependencies": {
     "@types/node": "22.15.19",
+    "oxlint": "1.70.0",
+    "prettier": "3.8.4",
     "typescript": "5.8.3",
     "vitest": "3.2.3"
   }

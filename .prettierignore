@@ -1,0 +1,8 @@
+dist/
+coverage/
+node_modules/
+*.log
+pnpm-lock.yaml
+.codegraph/
+.idea/
+.opencode/
