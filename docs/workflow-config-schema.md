@@ -1,11 +1,11 @@
 # Workflow Config Schema
 
-This document defines the public configuration shape for `opencode-flow`.
+This document defines the public configuration shape for `opencode-workflow`.
 It is the source of truth for config loading, validation, and execution in later tasks.
 
 ## Overview
 
-`opencode-flow` reads named workflows from the opencode configuration.
+`opencode-workflow` reads named workflows from the opencode configuration.
 There is no built-in default workflow. Users must define at least one workflow
 and trigger it explicitly by name.
 
@@ -22,10 +22,10 @@ as the `workflowName` tool argument, for example:
 
 ```md
 ---
-description: Run a named opencode-flow workflow
+description: Run a named opencode-workflow workflow
 ---
 
-Run the opencode-flow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
+Run the opencode-workflow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
 ```
 
 No workflow key is treated as a default. Calling the tool with an unknown name
@@ -38,7 +38,7 @@ Workflow configuration lives under `opencodeFlow` in `opencode.json`.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-flow"],
+  "plugin": ["opencode-workflow"],
   "opencodeFlow": {
     "workflows": {
       "review": {
@@ -204,7 +204,7 @@ They are documented here so they can be used as test cases.
 
 ```json
 {
-  "plugin": ["opencode-flow"]
+  "plugin": ["opencode-workflow"]
 }
 ```
 

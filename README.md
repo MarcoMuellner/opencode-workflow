@@ -1,17 +1,17 @@
-# opencode-flow
+# opencode-workflow
 
 An [opencode](https://opencode.ai) plugin that runs named sequential workflows from your opencode configuration.
 
-`opencode-flow` reads workflow definitions from `opencode.json`, then executes them step by step through the opencode SDK. Each workflow is a list of prompts and models. Steps run in order, later steps automatically receive the outputs of earlier steps, and every step receives a built-in clarification instruction. There is no built-in default workflow; every workflow must be configured and invoked by name.
+`opencode-workflow` reads workflow definitions from `opencode.json`, then executes them step by step through the opencode SDK. Each workflow is a list of prompts and models. Steps run in order, later steps automatically receive the outputs of earlier steps, and every step receives a built-in clarification instruction. There is no built-in default workflow; every workflow must be configured and invoked by name.
 
 ## Install
 
-`opencode-flow` is distributed as an npm plugin. Enable it by adding `opencode-flow` to the `plugin` list in your `opencode.json`:
+`opencode-workflow` is distributed as an npm plugin. Enable it by adding `opencode-workflow` to the `plugin` list in your `opencode.json`:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-flow"]
+  "plugin": ["opencode-workflow"]
 }
 ```
 
@@ -26,7 +26,7 @@ Define named workflows under the `opencodeFlow` key in `opencode.json`. Each wor
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-flow"],
+  "plugin": ["opencode-workflow"],
   "opencodeFlow": {
     "workflows": {
       "summarize": {
@@ -49,7 +49,7 @@ The following `pir-piv` workflow is an example only. It demonstrates how to chai
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-flow"],
+  "plugin": ["opencode-workflow"],
   "opencodeFlow": {
     "workflows": {
       "pir-piv": {
@@ -81,11 +81,11 @@ Create an opencode custom command that passes the workflow name to the `opencode
 
 ```md
 ---
-description: Run a named opencode-flow workflow
+description: Run a named opencode-workflow workflow
 agent: build
 ---
 
-Run the opencode-flow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
+Run the opencode-workflow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
 
 If "$ARGUMENTS" is empty, ask the user which configured workflow to run. Do not choose a default workflow.
 
@@ -105,7 +105,7 @@ Usage in the TUI:
 
 ## How it works
 
-- `opencode-flow` exposes a single custom tool named `opencode_flow`.
+- `opencode-workflow` exposes a single custom tool named `opencode_flow`.
 - The tool requires a `workflowName` that matches one of the keys under `opencodeFlow.workflows`.
 - Steps run in the order they appear in the configuration.
 - Each later step receives the accumulated outputs from previous steps.
@@ -136,13 +136,13 @@ This produces the compiled output in `dist/`.
 
 This package is published to the npm registry from GitHub Actions using npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC). No long-lived npm token is stored in GitHub. Before automated publishes work, complete these steps manually:
 
-1. **Confirm npm package ownership.** The name `opencode-flow` already exists on npm. Make sure you own that package or choose a different name in `package.json`.
+1. **Create or claim the npm package.** The package name is `opencode-workflow`. If it does not yet exist on npm, the first publish will create it automatically. If it already exists, make sure you own it or choose a different name in `package.json`.
 2. **Enable the trusted publisher on npmjs.com:**
-   - Open `https://www.npmjs.com/package/opencode-flow/access` → **Trusted Publisher**.
+   - Open `https://www.npmjs.com/package/opencode-workflow/access` → **Trusted Publisher**.
    - Select **GitHub Actions**.
    - Fill in:
      - Owner: `MarcoMuellner`
-     - Repository: `opencode-flow`
+     - Repository: `opencode-workflow`
      - Workflow filename: `publish.yml`
      - Allowed action: `npm publish`
    - Save the trusted publisher.

@@ -49,7 +49,7 @@ function formatWorkflowResult(
 }
 
 /**
- * opencode-flow plugin entrypoint.
+ * opencode-workflow plugin entrypoint.
  *
  * Loads named workflows from opencode configuration and validates them
  * before any workflow step runs. Exposes a custom tool that triggers a
@@ -65,14 +65,14 @@ export const OpencodeFlowPlugin: Plugin = async (ctx) => {
     tool: {
       opencode_flow: tool({
         description:
-          "Run a named opencode-flow workflow defined in the project configuration.",
+          "Run a named opencode-workflow workflow defined in the project configuration.",
         args: {
           workflowName: tool.schema.string().min(1),
         },
         async execute(args, context) {
           if (!workflowConfig) {
             throw new Error(
-              "opencode-flow configuration has not been loaded. Make sure the plugin is enabled and opencodeFlow is configured."
+              "opencode-workflow configuration has not been loaded. Make sure the plugin is enabled and opencodeFlow is configured."
             )
           }
 

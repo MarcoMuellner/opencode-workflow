@@ -1,5 +1,5 @@
 {
-  "name": "opencode-flow",
+  "name": "opencode-workflow",
   "version": "0.1.0",
   "description": "An npm-distributed opencode plugin that runs named sequential workflows from opencode configuration.",
   "type": "module",
@@ -40,12 +40,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MarcoMuellner/opencode-flow.git"
+    "url": "git+https://github.com/MarcoMuellner/opencode-workflow.git"
   },
   "bugs": {
-    "url": "https://github.com/MarcoMuellner/opencode-flow/issues"
+    "url": "https://github.com/MarcoMuellner/opencode-workflow/issues"
   },
-  "homepage": "https://github.com/MarcoMuellner/opencode-flow#readme",
+  "homepage": "https://github.com/MarcoMuellner/opencode-workflow#readme",
   "packageManager": "pnpm@10.33.2",
   "dependencies": {
     "@opencode-ai/plugin": "1.17.7"

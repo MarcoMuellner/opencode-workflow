@@ -132,7 +132,7 @@ describe("loadWorkflowConfig", () => {
 
   it("rejects missing opencodeFlow", () => {
     // Arrange
-    const config = { plugin: ["opencode-flow"] }
+    const config = { plugin: ["opencode-workflow"] }
 
     // Act
     const act = () => loadWorkflowConfig(config)
