@@ -8,14 +8,23 @@ import { buildStepPrompt, type PreviousStepOutput } from "./prompt.js"
  * remaining compatible with the client supplied in the plugin context.
  */
 export interface OpencodeStepRunnerClient {
-  /** Session API subset used to prompt a session. */
+  /** Session API subset used by the workflow step runner. */
   session: {
+    /** Create a new session, optionally as a child of an existing session. */
+    create: (options: {
+      query?: { directory?: string }
+      body?: { parentID?: string; title?: string }
+    }) => Promise<{
+      data?: { id: string } | undefined
+      error?: unknown | undefined
+    }>
     /** Send a prompt to a session and return the created assistant message. */
     prompt: (options: {
       path: { id: string }
       query?: { directory?: string }
       body: {
         model: { providerID: string; modelID: string }
+        agent?: string
         parts: Array<{ type: "text"; text: string }>
       }
     }) => Promise<{
@@ -126,6 +135,7 @@ export function createOpencodeStepRunner(
       query?: { directory?: string }
       body: {
         model: { providerID: string; modelID: string }
+        agent?: string
         parts: Array<{ type: "text"; text: string }>
       }
     } = {
@@ -138,6 +148,10 @@ export function createOpencodeStepRunner(
 
     if (directory !== undefined) {
       options.query = { directory }
+    }
+
+    if (input.step.agent !== undefined) {
+      options.body.agent = input.step.agent
     }
 
     const result = await client.session.prompt(options)

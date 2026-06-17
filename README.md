@@ -116,7 +116,7 @@ This workflow is not built in; it is included here as a starting point. You can 
 
 ### Passing structured arguments
 
-Use the optional `args` object on the `opencode_flow` tool to forward values such as a GitHub project number into every step prompt.
+Use the optional `args` object on the `opencode_flow` tool to forward values such as a GitHub issue number into every step prompt.
 
 Example custom command `.opencode/commands/flow.md`:
 
@@ -126,24 +126,34 @@ description: Run a named opencode-workflow workflow with arguments
 agent: build
 ---
 
-Run the opencode-workflow workflow named "$ARGUMENTS" using the `opencode_flow` tool.
+Run the opencode-workflow workflow using the `opencode_flow` tool.
 
-If "$ARGUMENTS" is empty, ask the user which configured workflow to run. Do not choose a default workflow.
+"$ARGUMENTS" contains the workflow name and an optional number separated by a space, for example "summarize 2342".
 
-Use the `opencode_flow` tool with:
+If "$ARGUMENTS" is empty, ask the user which configured workflow to run and what number to pass. Do not choose defaults.
 
-- workflowName: "$ARGUMENTS"
-- args: { "githubProjectNumber": 3 }
+Parse "$ARGUMENTS" as:
+
+1. workflowName: the first word
+2. args.githubIssueNumber: the second word, if present
+
+Then use the `opencode_flow` tool with workflowName and args.
+```
+
+Invoke it in opencode like:
+
+```text
+/flow summarize 2342
 ```
 
 The `args` object appears in every step prompt as:
 
 ```text
 Workflow arguments:
-- githubProjectNumber: 3
+- githubIssueNumber: 2342
 ```
 
-This makes values like project numbers, flags, or identifiers available to every step without hard-coding them in the prompt text.
+This makes values like issue numbers, flags, or identifiers available to every step without hard-coding them in the prompt text.
 
 ## How it works
 

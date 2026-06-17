@@ -3,7 +3,11 @@ import type { Plugin } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import type { OpencodeFlowOptions } from "./config.js"
 import { loadWorkflowConfig, resolveWorkflowConfig } from "./config.js"
-import { createOpencodeStepRunner, executeWorkflow } from "./execution.js"
+import {
+  createOpencodeStepRunner,
+  executeWorkflow,
+  WorkflowExecutionError,
+} from "./execution.js"
 import type {
   OpencodeStepRunnerClient,
   WorkflowExecutionResult,
@@ -75,9 +79,40 @@ export const OpencodeFlowPlugin: Plugin = async (ctx, options) => {
             opencodeDir
           )
 
+          const client = ctx.client as OpencodeStepRunnerClient
+          const createOptions: {
+            body: { parentID: string; title: string }
+            query?: { directory?: string }
+          } = {
+            body: {
+              parentID: context.sessionID,
+              title: `workflow: ${args.workflowName}`,
+            },
+          }
+
+          if (context.directory !== undefined) {
+            createOptions.query = { directory: context.directory }
+          }
+
+          const createResult = await client.session.create(createOptions)
+
+          if (createResult.error) {
+            throw new WorkflowExecutionError(
+              `Failed to create workflow session: ${String(createResult.error)}`
+            )
+          }
+
+          if (!createResult.data) {
+            throw new WorkflowExecutionError(
+              "Workflow session creation returned no data."
+            )
+          }
+
+          const workflowSessionID = createResult.data.id
+
           const runner = createOpencodeStepRunner(
-            ctx.client as OpencodeStepRunnerClient,
-            context.sessionID,
+            client,
+            workflowSessionID,
             context.directory
           )
 

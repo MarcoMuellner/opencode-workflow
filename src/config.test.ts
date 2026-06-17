@@ -287,6 +287,66 @@ describe("loadWorkflowConfig", () => {
     )
   })
 
+  it("accepts a per-step agent", () => {
+    const options = {
+      workflows: {
+        review: {
+          steps: [
+            {
+              prompt: "Review the change.",
+              model: "anthropic/claude-sonnet-4",
+              agent: "plan",
+            },
+          ],
+        },
+      },
+    }
+
+    const result = loadWorkflowConfig(options)
+
+    expect(result.workflows.review?.steps[0]?.agent).toBe("plan")
+  })
+
+  it("rejects a non-string per-step agent", () => {
+    const options = {
+      workflows: {
+        review: {
+          steps: [
+            {
+              prompt: "Review the change.",
+              model: "anthropic/claude-sonnet-4",
+              agent: 123,
+            },
+          ],
+        },
+      },
+    }
+
+    const act = () => loadWorkflowConfig(options)
+
+    expect(act).toThrow(/step 0 in workflow "review" agent must be a string/i)
+  })
+
+  it("rejects an empty per-step agent", () => {
+    const options = {
+      workflows: {
+        review: {
+          steps: [
+            {
+              prompt: "Review the change.",
+              model: "anthropic/claude-sonnet-4",
+              agent: "   ",
+            },
+          ],
+        },
+      },
+    }
+
+    const act = () => loadWorkflowConfig(options)
+
+    expect(act).toThrow(/step 0 in workflow "review".*empty agent/i)
+  })
+
   it("rejects an unknown workflow field", () => {
     const options = {
       workflows: {
@@ -433,6 +493,29 @@ describe("resolveWorkflowConfig", () => {
     if (tempDir) {
       rmSync(tempDir, { recursive: true, force: true })
     }
+  })
+
+  it("preserves per-step agent during resolve", () => {
+    const filePromptPath = "steps/scan.md"
+    const filePromptFull = path.join(tempDir, filePromptPath)
+    mkdirSync(path.dirname(filePromptFull), { recursive: true })
+    writeFileSync(filePromptFull, "Scan for issues.", "utf-8")
+
+    const config = loadWorkflowConfig({
+      workflows: {
+        review: {
+          steps: [
+            { prompt: "List files.", model: "a", agent: "explore" },
+            { prompt: filePromptPath, model: "b" },
+          ],
+        },
+      },
+    })
+
+    const resolved = resolveWorkflowConfig(config, tempDir)
+
+    expect(resolved.review?.steps[0]?.agent).toBe("explore")
+    expect(resolved.review?.steps[1]?.agent).toBeUndefined()
   })
 
   it("resolves a mixed inline and file-prompt workflow", () => {

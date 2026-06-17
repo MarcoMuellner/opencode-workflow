@@ -9,7 +9,9 @@ import {
   type WorkflowStepRunnerInput,
 } from "./execution.js"
 
-function makeWorkflowConfig(steps: { prompt: string; model: string }[]) {
+function makeWorkflowConfig(
+  steps: { prompt: string; model: string; agent?: string }[]
+) {
   return {
     workflows: {
       review: { steps },
@@ -37,10 +39,12 @@ function makeFakeClient(
     error?: unknown
   } = {
     data: { info: {}, parts: [] },
-  }
+  },
+  createdSessionID = "child-session-1"
 ): OpencodeStepRunnerClient {
   return {
     session: {
+      create: async () => ({ data: { id: createdSessionID } }),
       prompt: async () => response,
     },
   }
@@ -174,6 +178,7 @@ describe("createOpencodeStepRunner", () => {
     const captured: unknown[] = []
     const client: OpencodeStepRunnerClient = {
       session: {
+        create: async () => ({ data: { id: "session-1" } }),
         prompt: async (options) => {
           captured.push(options)
           return { data: { info: {}, parts: [{ type: "text", text: "ok" }] } }
@@ -211,6 +216,7 @@ describe("createOpencodeStepRunner", () => {
     let captured: { providerID: string; modelID: string } | undefined
     const client: OpencodeStepRunnerClient = {
       session: {
+        create: async () => ({ data: { id: "session-1" } }),
         prompt: async (options) => {
           captured = options.body.model
           return { data: { info: {}, parts: [{ type: "text", text: "ok" }] } }
@@ -235,6 +241,68 @@ describe("createOpencodeStepRunner", () => {
       providerID: "anthropic",
       modelID: "claude-sonnet-4",
     })
+  })
+
+  it("includes the configured agent in the request body", async () => {
+    // Arrange
+    let capturedAgent: string | undefined
+    const client: OpencodeStepRunnerClient = {
+      session: {
+        create: async () => ({ data: { id: "session-1" } }),
+        prompt: async (options) => {
+          capturedAgent = options.body.agent
+          return { data: { info: {}, parts: [{ type: "text", text: "ok" }] } }
+        },
+      },
+    }
+    const runner = createOpencodeStepRunner(client, "session-1")
+
+    // Act
+    await runner({
+      workflowName: "review",
+      step: {
+        prompt: "Plan this.",
+        model: "anthropic/claude-sonnet-4",
+        agent: "plan",
+      },
+      stepIndex: 0,
+      totalSteps: 1,
+      prompt: "prompt",
+      previousOutputs: [],
+      args: {},
+    })
+
+    // Assert
+    expect(capturedAgent).toBe("plan")
+  })
+
+  it("omits agent from the request body when not configured", async () => {
+    // Arrange
+    let capturedBody: { agent?: string } | undefined
+    const client: OpencodeStepRunnerClient = {
+      session: {
+        create: async () => ({ data: { id: "session-1" } }),
+        prompt: async (options) => {
+          capturedBody = options.body
+          return { data: { info: {}, parts: [{ type: "text", text: "ok" }] } }
+        },
+      },
+    }
+    const runner = createOpencodeStepRunner(client, "session-1")
+
+    // Act
+    await runner({
+      workflowName: "review",
+      step: { prompt: "Plan this.", model: "anthropic/claude-sonnet-4" },
+      stepIndex: 0,
+      totalSteps: 1,
+      prompt: "prompt",
+      previousOutputs: [],
+      args: {},
+    })
+
+    // Assert
+    expect(capturedBody).not.toHaveProperty("agent")
   })
 
   it("concatenates multiple text parts", async () => {

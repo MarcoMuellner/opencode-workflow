@@ -10,6 +10,8 @@ export interface WorkflowStepConfig {
   prompt: string
   /** Model identifier for this step. Free-form non-empty string in this MVP. */
   model: string
+  /** Optional opencode agent to run this step with. Defaults to opencode's current/default agent. */
+  agent?: string | undefined
 }
 
 /**
@@ -25,6 +27,8 @@ export interface ResolvedWorkflowStepConfig {
   promptFile: string | undefined
   /** Model identifier for this step. */
   model: string
+  /** Optional opencode agent to run this step with. */
+  agent?: string | undefined
 }
 
 /** Configuration for one named workflow after prompt files are resolved. */
@@ -130,6 +134,7 @@ export function resolveWorkflowConfig(
         prompt: resolvedPrompt.prompt,
         promptFile: resolvedPrompt.promptFile,
         model: step.model,
+        agent: step.agent,
       })
     }
 
@@ -229,7 +234,7 @@ export function loadWorkflowConfig(options: unknown): OpencodeFlowOptions {
       const stepRecord = step as Record<string, unknown>
 
       for (const key of Object.keys(stepRecord)) {
-        if (key !== "prompt" && key !== "model") {
+        if (key !== "prompt" && key !== "model" && key !== "agent") {
           throw new Error(
             `Step ${index} in workflow "${trimmedName}" contains unknown field "${key}".`
           )
@@ -272,9 +277,30 @@ export function loadWorkflowConfig(options: unknown): OpencodeFlowOptions {
         )
       }
 
+      if (
+        "agent" in stepRecord &&
+        stepRecord.agent !== undefined &&
+        typeof stepRecord.agent !== "string"
+      ) {
+        throw new Error(
+          `Step ${index} in workflow "${trimmedName}" agent must be a string.`
+        )
+      }
+
+      if (
+        typeof stepRecord.agent === "string" &&
+        stepRecord.agent.trim().length === 0
+      ) {
+        throw new Error(
+          `Step ${index} in workflow "${trimmedName}" has an empty agent.`
+        )
+      }
+
       validatedSteps.push({
         prompt: stepRecord.prompt,
         model: stepRecord.model,
+        agent:
+          typeof stepRecord.agent === "string" ? stepRecord.agent : undefined,
       })
     }
 

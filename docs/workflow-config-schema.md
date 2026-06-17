@@ -116,6 +116,7 @@ unknown top-level config keys before plugins can load.
 
 - **Type:** `object`
 - **Required fields:** `prompt`, `model`
+- **Optional fields:** `agent`
 - No other fields are allowed unless explicitly documented later.
 
 #### `prompt`
@@ -133,6 +134,13 @@ unknown top-level config keys before plugins can load.
 - **Required.**
 - Must be a non-empty string after trimming whitespace.
 - The value is free-form in this schema. Runtime validation decides which values are supported and how unsupported values are reported.
+
+#### `agent`
+
+- **Type:** `string`
+- **Optional.**
+- Must be a non-empty string after trimming whitespace when present.
+- When provided, the workflow step runs with the named opencode agent. When omitted, the step runs with opencode's current/default agent.
 
 ## Validation Intent
 
@@ -176,6 +184,29 @@ the problematic workflow or step.
         {
           "prompt": "Suggest concrete fixes or tests for the highest risks.",
           "model": "anthropic/claude-sonnet-4"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Multi-Step Workflow With Per-Step Agents
+
+```json
+{
+  "workflows": {
+    "plan-and-build": {
+      "steps": [
+        {
+          "prompt": "Plan the implementation for the selected task.",
+          "model": "anthropic/claude-sonnet-4",
+          "agent": "plan"
+        },
+        {
+          "prompt": "Implement the plan produced above. Follow the plan exactly.",
+          "model": "anthropic/claude-sonnet-4",
+          "agent": "build"
         }
       ]
     }

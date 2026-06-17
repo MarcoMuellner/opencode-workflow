@@ -29,14 +29,34 @@ function makeValidOptions(): PluginOptions {
   }
 }
 
-function makeFakePluginInput(
-  responses: string[]
-): PluginInput & { capturedPrompts: unknown[] } {
+function makeFakePluginInput(responses: string[]): PluginInput & {
+  capturedPrompts: unknown[]
+  createdSessions: {
+    parentID?: string | undefined
+    title?: string | undefined
+  }[]
+} {
   const capturedPrompts: unknown[] = []
+  const createdSessions: {
+    parentID?: string | undefined
+    title?: string | undefined
+  }[] = []
   let callIndex = 0
 
   const client: OpencodeStepRunnerClient = {
     session: {
+      create: async (options: {
+        body?: { parentID?: string; title?: string }
+        query?: { directory?: string }
+      }) => {
+        createdSessions.push({
+          parentID: options.body?.parentID,
+          title: options.body?.title,
+        })
+        return {
+          data: { id: `child-session-${createdSessions.length}` },
+        }
+      },
       prompt: async (options: unknown) => {
         capturedPrompts.push(options)
         const text = responses[callIndex++]
@@ -57,6 +77,7 @@ function makeFakePluginInput(
 
   return {
     capturedPrompts,
+    createdSessions,
     client: client as PluginInput["client"],
     project: {} as PluginInput["project"],
     directory: "/project",
@@ -122,23 +143,56 @@ describe("OpencodeFlowPlugin", () => {
     expect(plugin.tool?.opencode_flow).toHaveProperty("execute")
   })
 
-  it("tool runs the requested named workflow by name", async () => {
+  it("tool runs the requested named workflow in a child session", async () => {
     const input = makeFakePluginInput(["Summary output."])
     const plugin = await OpencodeFlowPlugin(input, makeValidOptions())
 
+    const toolContext = makeToolContext()
     const result = await getTool(plugin).execute(
       { workflowName: "summarize" },
-      makeToolContext()
+      toolContext
     )
 
     expect(result).toContain('Completed workflow "summarize"')
     expect(result).toContain("Summary output.")
+    expect(input.createdSessions).toHaveLength(1)
+    expect(input.createdSessions[0]?.parentID).toBe(toolContext.sessionID)
+    expect(input.createdSessions[0]?.title).toBe("workflow: summarize")
     expect(input.capturedPrompts).toHaveLength(1)
-    const promptText = (
-      input.capturedPrompts[0] as { body: { parts: { text: string }[] } }
-    ).body.parts[0]?.text
-    expect(promptText).toContain("Workflow: summarize")
-    expect(promptText).not.toContain("Workflow: review")
+    const promptOptions = input.capturedPrompts[0] as {
+      path: { id: string }
+      body: { parts: { text: string }[] }
+    }
+    expect(promptOptions.path.id).toBe("child-session-1")
+    expect(promptOptions.body.parts[0]?.text).toContain("Workflow: summarize")
+    expect(promptOptions.body.parts[0]?.text).not.toContain("Workflow: review")
+  })
+
+  it("passes the per-step agent to the child session prompt", async () => {
+    const input = makeFakePluginInput(["Plan output."])
+    const plugin = await OpencodeFlowPlugin(input, {
+      workflows: {
+        plan: {
+          steps: [
+            {
+              prompt: "Plan the implementation.",
+              model: "anthropic/claude-sonnet-4",
+              agent: "plan",
+            },
+          ],
+        },
+      },
+    })
+
+    await getTool(plugin).execute({ workflowName: "plan" }, makeToolContext())
+
+    const promptOptions = input.capturedPrompts[0] as {
+      body: { agent?: string; parts: { text: string }[] }
+    }
+    expect(promptOptions.body.agent).toBe("plan")
+    expect(promptOptions.body.parts[0]?.text).toContain(
+      "Plan the implementation."
+    )
   })
 
   it("tool rejects an unknown workflow name with available workflows", async () => {
