@@ -1,11 +1,16 @@
 import type { Plugin } from "@opencode-ai/plugin"
+import { loadWorkflowConfig } from "./config.js"
 
 /**
  * opencode-flow plugin entrypoint.
  *
- * Currently returns an empty hooks object. Workflow loading, validation,
- * and execution will be added in later tasks.
+ * Loads named workflows from opencode configuration and validates them
+ * before any workflow step runs.
  */
 export const OpencodeFlowPlugin: Plugin = async () => {
-  return {}
+  return {
+    config: async (config) => {
+      loadWorkflowConfig(config)
+    },
+  }
 }
